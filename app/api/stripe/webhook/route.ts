@@ -6,9 +6,17 @@ import { db } from '@/lib/db'
 import { sendBookingConfirmationEmail } from '@/lib/gmail'
 import { addAttendeeToCalendarEvent } from '@/lib/calendar'
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
 export async function POST(request: NextRequest) {
+  // Check if Stripe is configured
+  if (!stripe || !webhookSecret) {
+    return NextResponse.json(
+      { error: 'Stripe webhook is not configured' },
+      { status: 503 }
+    )
+  }
+
   const body = await request.text()
   const signature = headers().get('stripe-signature')!
 

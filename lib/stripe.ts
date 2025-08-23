@@ -1,17 +1,16 @@
 import Stripe from 'stripe'
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY is not set')
+let stripe: Stripe | null = null
+
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2024-09-30.acacia',
+    typescript: true,
+  })
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-09-30.acacia',
-  typescript: true,
-})
+export { stripe }
 
 export const getStripePublishableKey = () => {
-  if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
-    throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set')
-  }
-  return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null
 }

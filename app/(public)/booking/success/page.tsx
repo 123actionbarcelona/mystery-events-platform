@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -45,7 +47,7 @@ interface Booking {
   }>
 }
 
-export default function BookingSuccessPage() {
+function BookingSuccessContent() {
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loading, setLoading] = useState(true)
   const [verifying, setVerifying] = useState(true)
@@ -424,5 +426,17 @@ export default function BookingSuccessPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function BookingSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    }>
+      <BookingSuccessContent />
+    </Suspense>
   )
 }

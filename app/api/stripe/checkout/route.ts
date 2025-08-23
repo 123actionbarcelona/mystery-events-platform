@@ -14,6 +14,14 @@ const checkoutSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  // Check if Stripe is configured
+  if (!stripe) {
+    return NextResponse.json(
+      { error: 'Stripe is not configured' },
+      { status: 503 }
+    )
+  }
+
   try {
     const body = await request.json()
     const validatedData = checkoutSchema.parse(body)
