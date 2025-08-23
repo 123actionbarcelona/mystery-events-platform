@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -31,7 +31,7 @@ interface Event {
   price: number
 }
 
-export default function BookingConfirmationPage() {
+function BookingConfirmationContent() {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   
@@ -348,5 +348,17 @@ export default function BookingConfirmationPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function BookingConfirmationPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    }>
+      <BookingConfirmationContent />
+    </Suspense>
   )
 }
