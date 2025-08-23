@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 import { PublicHeader } from '@/components/public/header'
 import { PublicFooter } from '@/components/public/footer'
 
