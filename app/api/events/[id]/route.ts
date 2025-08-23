@@ -8,7 +8,7 @@ import { getMockEventById } from '@/lib/mock-data'
 import { z } from 'zod'
 
 interface RouteParams {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 // GET /api/events/[id] - Obtener evento específico
