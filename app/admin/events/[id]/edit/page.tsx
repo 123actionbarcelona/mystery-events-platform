@@ -7,19 +7,30 @@ import { EventFormData } from '@/lib/validations'
 import toast from 'react-hot-toast'
 
 interface PageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default function EditEventPage({ params }: PageProps) {
   const [event, setEvent] = useState<EventFormData & { id: string } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [eventId, setEventId] = useState<string>('')
   const router = useRouter()
 
   useEffect(() => {
+    const getParams = async () => {
+      const resolvedParams = await params
+      setEventId(resolvedParams.id)
+    }
+    getParams()
+  }, [params])
+
+  useEffect(() => {
+    if (!eventId) return
+    
     const fetchEvent = async () => {
       try {
-        const response = await fetch(`/api/events/${params.id}`)
+        const response = await fetch(`/api/events/${eventId}`)
         if (response.ok) {
           const eventData = await response.json()
           setEvent(eventData)
@@ -37,7 +48,7 @@ export default function EditEventPage({ params }: PageProps) {
     }
 
     fetchEvent()
-  }, [params.id, router])
+  }, [eventId, router])
 
   const handleSubmit = async (data: EventFormData) => {
     if (!event) return

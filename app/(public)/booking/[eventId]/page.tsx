@@ -39,10 +39,11 @@ interface Event {
   capacity: number
   availableTickets: number
   price: number
+  status: string
 }
 
 interface PageProps {
-  params: { eventId: string }
+  params: Promise<{ eventId: string }>
 }
 
 const bookingSchema = z.object({
@@ -61,6 +62,7 @@ export default function BookingPage({ params }: PageProps) {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [eventId, setEventId] = useState<string>('')
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -84,9 +86,19 @@ export default function BookingPage({ params }: PageProps) {
   const watchQuantity = watch('quantity')
 
   useEffect(() => {
+    const getParams = async () => {
+      const resolvedParams = await params
+      setEventId(resolvedParams.eventId)
+    }
+    getParams()
+  }, [params])
+
+  useEffect(() => {
+    if (!eventId) return
+    
     const fetchEvent = async () => {
       try {
-        const response = await fetch(`/api/events/${params.eventId}`)
+        const response = await fetch(`/api/events/${eventId}`)
         if (response.ok) {
           const eventData = await response.json()
           setEvent(eventData)
@@ -104,7 +116,7 @@ export default function BookingPage({ params }: PageProps) {
     }
 
     fetchEvent()
-  }, [params.eventId, router])
+  }, [eventId, router])
 
   const onSubmit = async (data: BookingFormData) => {
     if (!event) return

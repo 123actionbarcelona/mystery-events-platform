@@ -37,7 +37,7 @@ interface Event {
 }
 
 interface PageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 const categoryLabels = {
@@ -59,12 +59,23 @@ export default function EventDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [selectedTickets, setSelectedTickets] = useState(1)
   const [isFavorite, setIsFavorite] = useState(false)
+  const [eventId, setEventId] = useState<string>('')
   const router = useRouter()
 
   useEffect(() => {
+    const getParams = async () => {
+      const resolvedParams = await params
+      setEventId(resolvedParams.id)
+    }
+    getParams()
+  }, [params])
+
+  useEffect(() => {
+    if (!eventId) return
+    
     const fetchEvent = async () => {
       try {
-        const response = await fetch(`/api/events/${params.id}`)
+        const response = await fetch(`/api/events/${eventId}`)
         if (response.ok) {
           const eventData = await response.json()
           setEvent(eventData)
@@ -82,7 +93,7 @@ export default function EventDetailPage({ params }: PageProps) {
     }
 
     fetchEvent()
-  }, [params.id, router])
+  }, [eventId, router])
 
   const handleBooking = () => {
     if (!event) return
