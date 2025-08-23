@@ -1,0 +1,115 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id               String   @id @default(cuid())
+  title            String
+  description      String
+  category         String   // murder, escape, detective, horror
+  imageUrl         String?
+  date             DateTime
+  time             String   // "19:30"
+  duration         Int      // minutos
+  location         String
+  capacity         Int
+  availableTickets Int
+  price            Float    // EUR
+  status           String   @default("draft") // draft, active, soldout, cancelled
+  calendarEventId  String?  // Google Calendar Event ID
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relaciones
+  bookings         Booking[]
+
+  @@map("events")
+}
+
+model Booking {
+  id                String   @id @default(cuid())
+  bookingCode       String   @unique
+  eventId           String
+  customerName      String
+  customerEmail     String
+  customerPhone     String?
+  quantity          Int
+  totalAmount       Float
+  paymentStatus     String   @default("pending") // pending, completed, failed, refunded
+  stripeSessionId   String?
+  confirmationSent  Boolean  @default(false) // Email de confirmación enviado
+  reminderSent      Boolean  @default(false) // Email de recordatorio enviado
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relaciones
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets           Ticket[]
+  customer          Customer @relation(fields: [customerEmail], references: [email])
+
+  @@map("bookings")
+}
+
+model Ticket {
+  id         String    @id @default(cuid())
+  ticketCode String    @unique
+  bookingId  String
+  status     String    @default("valid") // valid, used, cancelled
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  // Relaciones
+  booking    Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("tickets")
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  phone         String?
+  totalBookings Int      @default(0)
+  totalSpent    Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones
+  bookings      Booking[]
+
+  @@map("customers")
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique // booking_confirmation, booking_reminder, etc.
+  subject   String
+  html      String
+  variables Json     // campos dinámicos disponibles
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("email_templates")
+}
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // hash bcrypt
+  name      String
+  role      String   @default("admin")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admin_users")
+}
