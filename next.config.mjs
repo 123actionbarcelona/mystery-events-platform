@@ -17,9 +17,8 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  output: 'standalone',
-  trailingSlash: false,
-  generateStaticParams: false,
+  poweredByHeader: false,
+  generateBuildId: () => 'build-' + Date.now(),
 }
 
 export default nextConfig
