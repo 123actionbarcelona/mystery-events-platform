@@ -1,9 +1,5 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-export const dynamicParams = true
-export const revalidate = 0
-
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -28,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { formatPrice, formatDate } from '@/lib/utils'
+import { VoucherValidator, useVoucherValidator } from '@/components/public/voucher-validator'
 import toast from 'react-hot-toast'
 
 interface Event {
@@ -88,6 +85,15 @@ export default function BookingPage({ params }: PageProps) {
   })
 
   const watchQuantity = watch('quantity')
+  
+  // Hook para manejar vales regalo
+  const {
+    voucherData,
+    isVoucherApplied,
+    handleVoucherValidated,
+    handleVoucherRemoved,
+    getPaymentBreakdown
+  } = useVoucherValidator()
 
   useEffect(() => {
     const getParams = async () => {
@@ -128,16 +134,26 @@ export default function BookingPage({ params }: PageProps) {
     setSubmitting(true)
     
     try {
-      // Crear sesión de Stripe Checkout
-      const response = await fetch('/api/stripe/checkout', {
+      // Preparar datos de la reserva incluyendo información del vale
+      const bookingData = {
+        eventId: event.id,
+        ...data,
+        // Añadir información del vale si está aplicado
+        voucherCode: isVoucherApplied ? voucherData?.voucher?.code : undefined,
+        paymentBreakdown: isVoucherApplied ? paymentBreakdown : undefined
+      }
+
+      // Elegir endpoint según si hay vale aplicado o no
+      const endpoint = isVoucherApplied 
+        ? '/api/checkout/voucher' 
+        : '/api/stripe/checkout'
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          eventId: event.id,
-          ...data,
-        }),
+        body: JSON.stringify(bookingData),
       })
 
       if (!response.ok) {
@@ -145,10 +161,18 @@ export default function BookingPage({ params }: PageProps) {
         throw new Error(error.error || 'Error al crear la sesión de pago')
       }
 
-      const { checkoutUrl, bookingCode } = await response.json()
+      const result = await response.json()
       
-      // Redirigir a Stripe Checkout
-      window.location.href = checkoutUrl
+      // Manejar respuesta del nuevo endpoint de vouchers
+      if (isVoucherApplied && result.paymentCompleted === true) {
+        // Pago completamente con vale - redirigir directamente a éxito
+        window.location.href = result.redirectUrl || `/booking/success?booking_id=${result.bookingId}`
+      } else if (result.checkoutUrl) {
+        // Pago mixto o sin vale - redirigir a Stripe
+        window.location.href = result.checkoutUrl
+      } else {
+        throw new Error('Respuesta inválida del servidor')
+      }
       
     } catch (error) {
       console.error('Error creating booking:', error)
@@ -173,6 +197,9 @@ export default function BookingPage({ params }: PageProps) {
   const isAvailable = event.availableTickets >= watchQuantity && event.status === 'active'
   const totalPrice = event.price * watchQuantity
   const eventDate = new Date(event.date)
+  
+  // Calcular desglose de pago con vale
+  const paymentBreakdown = getPaymentBreakdown(event?.id, totalPrice)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -289,6 +316,15 @@ export default function BookingPage({ params }: PageProps) {
                     </div>
                   </div>
 
+                  {/* Voucher Validator */}
+                  <VoucherValidator
+                    eventId={event.id}
+                    amount={totalPrice}
+                    onValidated={handleVoucherValidated}
+                    onRemoved={handleVoucherRemoved}
+                    showTitle={true}
+                  />
+
                   {/* Terms and Conditions */}
                   <div className="space-y-4">
                     <div className="flex items-start space-x-3">
@@ -299,13 +335,13 @@ export default function BookingPage({ params }: PageProps) {
                       />
                       <label className="text-sm text-gray-700">
                         Acepto los{' '}
-                        <a href="/terms" className="text-purple-600 hover:underline">
+                        <span className="text-purple-600">
                           términos y condiciones
-                        </a>{' '}
+                        </span>{' '}
                         y la{' '}
-                        <a href="/privacy" className="text-purple-600 hover:underline">
+                        <span className="text-purple-600">
                           política de privacidad
-                        </a>
+                        </span>
                         *
                       </label>
                     </div>
@@ -347,7 +383,11 @@ export default function BookingPage({ params }: PageProps) {
                     size="lg"
                   >
                     <Lock className="h-5 w-5 mr-2" />
-                    {submitting ? 'Procesando...' : `Proceder al Pago - ${formatPrice(totalPrice)}`}
+                    {submitting ? 'Procesando...' : 
+                      paymentBreakdown.stripeAmount > 0 
+                        ? `Proceder al Pago - ${formatPrice(paymentBreakdown.stripeAmount)}`
+                        : 'Confirmar Reserva - Gratis con Vale'
+                    }
                   </Button>
 
                   {!isAvailable && (
@@ -412,16 +452,65 @@ export default function BookingPage({ params }: PageProps) {
                     <span>Subtotal:</span>
                     <span>{formatPrice(event.price * watchQuantity)}</span>
                   </div>
+                  
+                  {/* Voucher applied */}
+                  {isVoucherApplied && paymentBreakdown.voucherAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Vale regalo:</span>
+                      <span>-{formatPrice(paymentBreakdown.voucherAmount)}</span>
+                    </div>
+                  )}
+                  
                   <div className="flex justify-between">
                     <span>Gastos de gestión:</span>
                     <span>Incluidos</span>
                   </div>
-                  <div className="border-t border-gray-200 pt-2">
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total:</span>
-                      <span className="text-purple-600">{formatPrice(totalPrice)}</span>
+                  
+                  {isVoucherApplied && paymentBreakdown.stripeAmount > 0 ? (
+                    <>
+                      <div className="border-t border-gray-200 pt-2">
+                        <div className="flex justify-between text-lg font-bold">
+                          <span>Total:</span>
+                          <span className="text-purple-600">{formatPrice(totalPrice)}</span>
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 rounded-lg p-3 mt-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Pagado con vale:</span>
+                          <span className="text-green-600 font-medium">
+                            {formatPrice(paymentBreakdown.voucherAmount)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm font-bold">
+                          <span>A pagar con tarjeta:</span>
+                          <span className="text-purple-600">
+                            {formatPrice(paymentBreakdown.stripeAmount)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : isVoucherApplied ? (
+                    <>
+                      <div className="border-t border-gray-200 pt-2">
+                        <div className="flex justify-between text-lg font-bold">
+                          <span>Total:</span>
+                          <span className="text-purple-600">{formatPrice(totalPrice)}</span>
+                        </div>
+                      </div>
+                      <div className="bg-green-50 rounded-lg p-3 mt-2">
+                        <div className="text-center text-sm font-bold text-green-700">
+                          ✅ Cubierto completamente con vale regalo
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="border-t border-gray-200 pt-2">
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Total:</span>
+                        <span className="text-purple-600">{formatPrice(totalPrice)}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Cancellation Policy */}

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, memo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useDebounce } from '@/lib/hooks'
 import { Plus, Search, Filter, Edit, Trash2, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,12 +57,15 @@ export default function EventsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
+  
+  // Debounce para optimizar búsquedas
+  const debouncedSearch = useDebounce(search, 300)
   const router = useRouter()
 
   const fetchEvents = async () => {
     try {
       const params = new URLSearchParams()
-      if (search) params.set('search', search)
+      if (debouncedSearch) params.set('search', debouncedSearch)
       if (statusFilter) params.set('status', statusFilter)
       if (categoryFilter) params.set('category', categoryFilter)
 
@@ -79,9 +83,9 @@ export default function EventsPage() {
 
   useEffect(() => {
     fetchEvents()
-  }, [search, statusFilter, categoryFilter])
+  }, [debouncedSearch, statusFilter, categoryFilter])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este evento?')) {
       return
     }
@@ -101,9 +105,9 @@ export default function EventsPage() {
       console.error('Error deleting event:', error)
       alert('Error al eliminar el evento')
     }
-  }
+  }, [events])
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
+  const handleStatusChange = useCallback(async (id: string, newStatus: string) => {
     try {
       const response = await fetch(`/api/events/${id}`, {
         method: 'PATCH',
@@ -122,7 +126,7 @@ export default function EventsPage() {
     } catch (error) {
       console.error('Error updating event status:', error)
     }
-  }
+  }, [events])
 
   if (loading) {
     return (

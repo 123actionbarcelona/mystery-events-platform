@@ -1,11 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { useDebounce } from '@/lib/hooks'
+import { VirtualList, useVirtualScrolling } from '@/components/ui/virtual-list'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Search, Filter, Download, Eye } from 'lucide-react'
+import { Search, Filter, Download, Eye, RefreshCw } from 'lucide-react'
+import { formatPrice, safeFormatDate, safeFormatDateTime, safeFormatDateTimeShort } from '@/lib/utils'
 
 interface Booking {
   id: string
@@ -13,113 +17,45 @@ interface Booking {
   customerName: string
   customerEmail: string
   customerPhone?: string
-  eventTitle: string
-  eventDate: string
   quantity: number
   totalAmount: number
-  paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded'
+  paymentStatus: 'pending' | 'paid' | 'completed' | 'failed' | 'refunded'
+  paymentMethod?: 'card' | 'voucher' | 'mixed'
+  voucherAmount?: number
+  stripeAmount?: number
   createdAt: string
   updatedAt: string
+  event: {
+    title: string
+    date: string
+    time: string
+  }
+  customer: {
+    name: string
+    email: string
+  }
+  tickets: Array<{
+    id: string
+    ticketCode: string
+    status: string
+  }>
 }
 
-// Mock data para mostrar mientras no hay BD
-const mockBookings: Booking[] = [
-  {
-    id: "b1",
-    bookingCode: "MST-2025-001",
-    customerName: "Ana García",
-    customerEmail: "ana.garcia@email.com",
-    customerPhone: "+34 666 777 888",
-    eventTitle: "El Misterio de la Mansión Victorian",
-    eventDate: "2025-08-25",
-    quantity: 2,
-    totalAmount: 90.00,
-    paymentStatus: "completed",
-    createdAt: "2025-08-20T10:30:00Z",
-    updatedAt: "2025-08-20T10:30:00Z"
-  },
-  {
-    id: "b2", 
-    bookingCode: "MST-2025-002",
-    customerName: "Carlos López",
-    customerEmail: "carlos.lopez@email.com",
-    customerPhone: "+34 699 888 999",
-    eventTitle: "Escape Room: La Prisión de Alcatraz",
-    eventDate: "2025-08-26",
-    quantity: 4,
-    totalAmount: 100.00,
-    paymentStatus: "completed",
-    createdAt: "2025-08-20T09:15:00Z",
-    updatedAt: "2025-08-20T09:15:00Z"
-  },
-  {
-    id: "b3",
-    bookingCode: "MST-2025-003", 
-    customerName: "María Rodríguez",
-    customerEmail: "maria.rodriguez@email.com",
-    eventTitle: "Detective Privado: El Caso del Collar Perdido",
-    eventDate: "2025-08-27",
-    quantity: 1,
-    totalAmount: 35.00,
-    paymentStatus: "pending",
-    createdAt: "2025-08-20T08:45:00Z",
-    updatedAt: "2025-08-20T08:45:00Z"
-  },
-  {
-    id: "b4",
-    bookingCode: "MST-2025-004",
-    customerName: "José Martín",
-    customerEmail: "jose.martin@email.com",
-    eventTitle: "Murder Mystery: Cena con Crimen", 
-    eventDate: "2025-08-30",
-    quantity: 3,
-    totalAmount: 195.00,
-    paymentStatus: "failed",
-    createdAt: "2025-08-19T19:20:00Z",
-    updatedAt: "2025-08-19T19:20:00Z"
-  }
-]
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
-  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const router = useRouter()
 
-  useEffect(() => {
-    // Simular carga de datos
-    setTimeout(() => {
-      setBookings(mockBookings)
-      setFilteredBookings(mockBookings)
-      setLoading(false)
-    }, 500)
-  }, [])
-
-  useEffect(() => {
-    let filtered = bookings
-
-    // Filtrar por término de búsqueda
-    if (searchTerm) {
-      filtered = filtered.filter(booking => 
-        booking.bookingCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.eventTitle.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
-
-    // Filtrar por status
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.paymentStatus === statusFilter)
-    }
-
-    setFilteredBookings(filtered)
-  }, [bookings, searchTerm, statusFilter])
-
+  // HELPER FUNCTIONS - Moved here to fix hoisting issue
   const getStatusBadge = (status: string) => {
     const variants = {
       completed: 'bg-green-100 text-green-800',
+      paid: 'bg-green-100 text-green-800',
       pending: 'bg-yellow-100 text-yellow-800', 
       failed: 'bg-red-100 text-red-800',
       refunded: 'bg-gray-100 text-gray-800'
@@ -127,6 +63,7 @@ export default function BookingsPage() {
     
     const labels = {
       completed: 'Completado',
+      paid: 'Pagado',
       pending: 'Pendiente',
       failed: 'Fallido',
       refunded: 'Reembolsado'
@@ -139,19 +76,156 @@ export default function BookingsPage() {
     )
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+  const getPaymentMethodBadge = (method: string | undefined, voucherAmount?: number, stripeAmount?: number) => {
+    if (!method) return null
+    
+    const variants = {
+      card: 'bg-blue-100 text-blue-800',
+      voucher: 'bg-purple-100 text-purple-800',
+      mixed: 'bg-orange-100 text-orange-800'
+    }
+    
+    const labels = {
+      card: 'Tarjeta',
+      voucher: 'Vale',
+      mixed: 'Mixto'
+    }
+
+    return (
+      <Badge className={variants[method] || 'bg-gray-100 text-gray-800'}>
+        {labels[method] || method}
+        {method === 'mixed' && voucherAmount && stripeAmount && (
+          <span className="ml-1 text-xs">
+            (€{voucherAmount.toFixed(0)}+€{stripeAmount.toFixed(0)})
+          </span>
+        )}
+      </Badge>
+    )
   }
 
-  const formatPrice = (amount: number) => {
-    return `€${amount.toFixed(2)}`
-  }
+  // OPTIMIZACIÓN: useCallback para evitar re-renders innecesarios
+  const fetchBookings = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      console.time('⚡ Bookings API Call')
+      
+      const params = new URLSearchParams()
+      if (debouncedSearchTerm) params.set('search', debouncedSearchTerm)
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      params.set('limit', '100')
+      
+      const response = await fetch(`/api/admin/bookings?${params}`, { 
+        cache: 'no-store' 
+      })
+      
+      console.timeEnd('⚡ Bookings API Call')
+      
+      if (response.ok) {
+        const data = await response.json()
+        setBookings(data.bookings || [])
+        console.log('📊 Bookings loaded:', data.bookings?.length)
+      } else {
+        console.error('Error fetching bookings:', response.statusText)
+        setBookings([])
+      }
+    } catch (error) {
+      console.error('Error fetching bookings:', error)
+      setBookings([])
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [debouncedSearchTerm, statusFilter])
+
+  useEffect(() => {
+    fetchBookings()
+  }, [fetchBookings])
+
+  // OPTIMIZACIÓN: Filtrado ahora se hace en servidor, solo memoizamos los datos
+  const filteredBookings = useMemo(() => {
+    // El filtrado se hace en el servidor, pero mantenemos capacidad local para casos edge
+    return bookings
+  }, [bookings])
+  
+  // OPTIMIZACIÓN: Memoizar estadísticas calculadas
+  const bookingStats = useMemo(() => {
+    const totalBookings = bookings.length
+    const paidBookings = bookings.filter(b => b.paymentStatus === 'completed' || b.paymentStatus === 'paid').length
+    const pendingBookings = bookings.filter(b => b.paymentStatus === 'pending').length
+    const totalRevenue = bookings.reduce((sum, b) => 
+      sum + ((b.paymentStatus === 'completed' || b.paymentStatus === 'paid') ? b.totalAmount : 0), 0
+    )
+    
+    return { totalBookings, paidBookings, pendingBookings, totalRevenue }
+  }, [bookings])
+
+  // OPTIMIZACIÓN FASE 2: Virtual scrolling para listas largas
+  const { shouldUseVirtualScrolling, itemCount } = useVirtualScrolling(filteredBookings, 50)
+  
+  // Componente para renderizar cada booking (memoizado)
+  const renderBookingItem = useMemo(() => (booking: Booking, index: number) => (
+    <div key={booking.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors mx-4 my-2">
+      <div className="flex justify-between items-start">
+        <div className="space-y-2 flex-1">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+              {booking.bookingCode}
+            </span>
+            {getStatusBadge(booking.paymentStatus)}
+            {getPaymentMethodBadge(booking.paymentMethod, booking.voucherAmount, booking.stripeAmount)}
+          </div>
+          
+          <div>
+            <h4 className="font-semibold">{booking.customerName}</h4>
+            <p className="text-sm text-gray-600">{booking.customerEmail}</p>
+            {booking.customerPhone && (
+              <p className="text-sm text-gray-600">{booking.customerPhone}</p>
+            )}
+          </div>
+          
+          <div>
+            <p className="font-medium">{booking.event.title}</p>
+            <p className="text-sm text-gray-600">
+              {safeFormatDateTime(booking.event.date, booking.event.time)}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
+            <span>{booking.quantity} tickets</span>
+            <span className="font-semibold">{formatPrice(booking.totalAmount)}</span>
+            {booking.paymentMethod === 'voucher' && booking.voucherAmount && (
+              <span className="text-purple-600">Vale: €{booking.voucherAmount.toFixed(2)}</span>
+            )}
+            {booking.paymentMethod === 'mixed' && (
+              <span className="text-orange-600">
+                Vale: €{booking.voucherAmount?.toFixed(2) || 0} + Tarjeta: €{booking.stripeAmount?.toFixed(2) || 0}
+              </span>
+            )}
+            <span>Creada: {safeFormatDateTimeShort(booking.createdAt)}</span>
+          </div>
+
+          {booking.tickets && booking.tickets.length > 0 && (
+            <div className="text-xs text-gray-500 mt-2">
+              Tickets: {booking.tickets.map(t => t.ticketCode).join(', ')}
+            </div>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => router.push(`/admin/bookings/${booking.id}`)}
+          >
+            <Eye className="h-4 w-4" />
+            Ver detalles
+          </Button>
+        </div>
+      </div>
+    </div>
+  ), [router, getStatusBadge, getPaymentMethodBadge])
+
+  // Funciones de formateo movidas a @/lib/utils
 
   if (loading) {
     return (
@@ -173,10 +247,21 @@ export default function BookingsPage() {
           <h1 className="text-3xl font-bold">Reservas</h1>
           <p className="text-gray-600">Gestiona todas las reservas de eventos</p>
         </div>
-        <Button className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Exportar CSV
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            onClick={fetchBookings}
+            variant="outline"
+            disabled={refreshing}
+            className="text-gray-700 hover:text-gray-900"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Actualizando...' : 'Actualizar'}
+          </Button>
+          <Button className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -202,6 +287,7 @@ export default function BookingsPage() {
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm"
               >
                 <option value="all">Todos los estados</option>
+                <option value="paid">Pagado</option>
                 <option value="completed">Completado</option>
                 <option value="pending">Pendiente</option>
                 <option value="failed">Fallido</option>
@@ -212,35 +298,29 @@ export default function BookingsPage() {
         </CardContent>
       </Card>
 
-      {/* Stats rápidas */}
+      {/* Stats rápidas - OPTIMIZADAS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">{bookings.length}</div>
+            <div className="text-2xl font-bold">{bookingStats.totalBookings}</div>
             <p className="text-sm text-gray-600">Total reservas</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">
-              {bookings.filter(b => b.paymentStatus === 'completed').length}
-            </div>
-            <p className="text-sm text-gray-600">Completadas</p>
+            <div className="text-2xl font-bold">{bookingStats.paidBookings}</div>
+            <p className="text-sm text-gray-600">Pagadas</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">
-              {bookings.filter(b => b.paymentStatus === 'pending').length}
-            </div>
+            <div className="text-2xl font-bold">{bookingStats.pendingBookings}</div>
             <p className="text-sm text-gray-600">Pendientes</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">
-              {formatPrice(bookings.reduce((sum, b) => sum + (b.paymentStatus === 'completed' ? b.totalAmount : 0), 0))}
-            </div>
+            <div className="text-2xl font-bold">{formatPrice(bookingStats.totalRevenue)}</div>
             <p className="text-sm text-gray-600">Ingresos</p>
           </CardContent>
         </Card>
@@ -249,67 +329,54 @@ export default function BookingsPage() {
       {/* Lista de reservas */}
       <Card>
         <CardHeader>
-          <CardTitle>Reservas ({filteredBookings.length})</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Reservas ({filteredBookings.length})
+            {shouldUseVirtualScrolling && (
+              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                ⚡ Optimizado
+              </span>
+            )}
+          </CardTitle>
           <CardDescription>
-            Lista completa de reservas con filtros aplicados
+            {shouldUseVirtualScrolling ? (
+              <span>
+                Lista optimizada con virtual scrolling • 
+                Renderizando solo elementos visibles para mejor rendimiento
+              </span>
+            ) : (
+              'Lista completa de reservas con filtros aplicados'
+            )}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {filteredBookings.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No se encontraron reservas con los filtros aplicados
+        <CardContent className={shouldUseVirtualScrolling ? 'p-0' : 'p-6'}>
+          {filteredBookings.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 p-6">
+              No se encontraron reservas con los filtros aplicados
+            </div>
+          ) : shouldUseVirtualScrolling ? (
+            // VIRTUAL SCROLLING para listas largas (>50 items)
+            <div className="p-4">
+              <div className="text-sm text-gray-600 mb-4 flex items-center gap-2">
+                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                  ⚡ Virtual Scrolling
+                </span>
+                <span>Renderizando {Math.min(20, filteredBookings.length)} de {filteredBookings.length} reservas</span>
               </div>
-            ) : (
-              filteredBookings.map((booking) => (
-                <div key={booking.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                          {booking.bookingCode}
-                        </span>
-                        {getStatusBadge(booking.paymentStatus)}
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-semibold">{booking.customerName}</h4>
-                        <p className="text-sm text-gray-600">{booking.customerEmail}</p>
-                        {booking.customerPhone && (
-                          <p className="text-sm text-gray-600">{booking.customerPhone}</p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <p className="font-medium">{booking.eventTitle}</p>
-                        <p className="text-sm text-gray-600">
-                          {new Date(booking.eventDate).toLocaleDateString('es-ES', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span>{booking.quantity} tickets</span>
-                        <span className="font-semibold">{formatPrice(booking.totalAmount)}</span>
-                        <span>Creada: {formatDate(booking.createdAt)}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4" />
-                        Ver detalles
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+              <VirtualList
+                items={filteredBookings}
+                height={600} // 600px de altura
+                itemHeight={120} // ~120px por booking
+                renderItem={renderBookingItem}
+                className="border rounded-lg"
+                overscan={5}
+              />
+            </div>
+          ) : (
+            // RENDERIZADO NORMAL para listas pequeñas (<50 items)
+            <div className="space-y-4">
+              {filteredBookings.map((booking) => renderBookingItem(booking, 0))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

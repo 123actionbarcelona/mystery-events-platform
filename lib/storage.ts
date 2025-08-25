@@ -1,4 +1,6 @@
-import { supabase } from '@/lib/supabase'
+import { writeFile, mkdir } from 'fs/promises'
+import path from 'path'
+import { randomBytes } from 'crypto'
 
 export interface UploadResult {
   success: boolean
@@ -6,7 +8,7 @@ export interface UploadResult {
   error?: string
 }
 
-export async function uploadEventImage(file: File, eventId: string): Promise<UploadResult> {
+export async function uploadEventImage(file: File, eventId?: string): Promise<UploadResult> {
   try {
     // Validar el archivo
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
@@ -27,34 +29,30 @@ export async function uploadEventImage(file: File, eventId: string): Promise<Upl
     }
 
     // Generar nombre único para el archivo
-    const fileExtension = file.name.split('.').pop()
-    const fileName = `${eventId}-${Date.now()}.${fileExtension}`
-    const filePath = `events/${fileName}`
-
-    // Subir archivo a Supabase Storage
-    const { data, error } = await supabase.storage
-      .from('event-images')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      })
-
-    if (error) {
-      console.error('Error uploading to Supabase:', error)
-      return {
-        success: false,
-        error: 'Error al subir la imagen. Inténtalo de nuevo.'
-      }
-    }
-
-    // Obtener URL pública de la imagen
-    const { data: urlData } = supabase.storage
-      .from('event-images')
-      .getPublicUrl(filePath)
+    const fileExtension = file.name.split('.').pop() || 'jpg'
+    const randomId = randomBytes(5).toString('hex')
+    const fileName = `${randomId}_${Date.now()}.${fileExtension}`
+    
+    // Crear directorio si no existe
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'events')
+    await mkdir(uploadDir, { recursive: true })
+    
+    // Ruta completa del archivo
+    const filePath = path.join(uploadDir, fileName)
+    
+    // Convertir File a Buffer
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    
+    // Guardar archivo
+    await writeFile(filePath, buffer)
+    
+    // URL pública de la imagen
+    const publicUrl = `/uploads/events/${fileName}`
 
     return {
       success: true,
-      url: urlData.publicUrl
+      url: publicUrl
     }
 
   } catch (error) {
@@ -68,19 +66,19 @@ export async function uploadEventImage(file: File, eventId: string): Promise<Upl
 
 export async function deleteEventImage(imageUrl: string): Promise<boolean> {
   try {
-    // Extraer el path del archivo de la URL
-    const urlParts = imageUrl.split('/')
-    const filePath = urlParts.slice(-2).join('/') // events/filename.jpg
-
-    const { error } = await supabase.storage
-      .from('event-images')
-      .remove([filePath])
-
-    if (error) {
-      console.error('Error deleting from Supabase:', error)
-      return false
+    // Solo eliminar si es una imagen local (no URLs externas)
+    if (!imageUrl.startsWith('/uploads/')) {
+      return true // No eliminar URLs externas
     }
-
+    
+    // Extraer el nombre del archivo
+    const fileName = path.basename(imageUrl)
+    const filePath = path.join(process.cwd(), 'public', 'uploads', 'events', fileName)
+    
+    // Eliminar archivo (importar unlink)
+    const { unlink } = await import('fs/promises')
+    await unlink(filePath)
+    
     return true
 
   } catch (error) {

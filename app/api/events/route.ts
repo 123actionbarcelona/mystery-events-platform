@@ -60,11 +60,23 @@ export async function GET(request: NextRequest) {
           orderBy: { date: 'asc' },
           skip,
           take: filters.limit,
-          include: isAdmin ? {
-            _count: {
+          include: {
+            // Siempre incluir bookings para calcular disponibilidad
+            bookings: isAdmin ? {
+              include: {
+                customer: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            } : {
+              select: {
+                quantity: true,
+                paymentStatus: true,
+              }
+            },
+            _count: isAdmin ? {
               select: { bookings: true }
-            }
-          } : undefined,
+            } : undefined,
+          },
         }),
         db.event.count({ where }),
       ])
@@ -84,10 +96,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Calcular tickets disponibles para eventos públicos
-    const eventsWithAvailability = events.map(event => ({
-      ...event,
-      availableTickets: event.capacity - (event._count?.bookings || 0),
-    }))
+    const eventsWithAvailability = events.map(event => {
+      // Contar solo las reservas pagadas y pendientes
+      const bookedTickets = event.bookings?.reduce((total, booking) => {
+        return total + (['paid', 'pending'].includes(booking.paymentStatus) ? booking.quantity : 0)
+      }, 0) || 0
+
+      return {
+        ...event,
+        availableTickets: event.capacity - bookedTickets,
+        bookedTickets, // Incluir para debugging
+      }
+    })
 
     return NextResponse.json({
       events: eventsWithAvailability,

@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -25,11 +25,23 @@ model Event {
   price            Float    // EUR
   status           String   @default("draft") // draft, active, soldout, cancelled
   calendarEventId  String?  // Google Calendar Event ID
+  
+  // NUEVOS CAMPOS - Plantillas específicas del evento
+  confirmationTemplateId  String?  // ID de plantilla para confirmación de reserva
+  reminderTemplateId     String?  // ID de plantilla para recordatorio de evento
+  voucherTemplateId      String?  // ID de plantilla para vales de este evento
+  
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  // Relaciones
+  // Relaciones existentes
   bookings         Booking[]
+  giftVouchers     GiftVoucher[] // NUEVO - Vales para evento específico
+  
+  // NUEVAS RELACIONES - Plantillas específicas
+  confirmationTemplate   EmailTemplate? @relation("EventConfirmationTemplate", fields: [confirmationTemplateId], references: [id])
+  reminderTemplate      EmailTemplate? @relation("EventReminderTemplate", fields: [reminderTemplateId], references: [id]) 
+  voucherTemplate       EmailTemplate? @relation("EventVoucherTemplate", fields: [voucherTemplateId], references: [id])
 
   @@map("events")
 }
@@ -47,6 +59,12 @@ model Booking {
   stripeSessionId   String?
   confirmationSent  Boolean  @default(false) // Email de confirmación enviado
   reminderSent      Boolean  @default(false) // Email de recordatorio enviado
+  
+  // NUEVO - Sistema vales regalo (Agosto 2024)
+  paymentMethod     String   @default("card") // card | voucher | mixed
+  voucherAmount     Float?   // Cantidad pagada con voucher
+  stripeAmount      Float?   // Cantidad pagada con tarjeta
+  
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -54,6 +72,7 @@ model Booking {
   event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tickets           Ticket[]
   customer          Customer @relation(fields: [customerEmail], references: [email])
+  voucherRedemption VoucherRedemption?
 
   @@map("bookings")
 }
@@ -93,10 +112,15 @@ model EmailTemplate {
   name      String   @unique // booking_confirmation, booking_reminder, etc.
   subject   String
   html      String
-  variables Json     // campos dinámicos disponibles
+  variables String   // campos dinámicos disponibles (JSON serializado)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // NUEVAS RELACIONES INVERSAS - Eventos que usan esta plantilla
+  eventsAsConfirmation   Event[] @relation("EventConfirmationTemplate")
+  eventsAsReminder      Event[] @relation("EventReminderTemplate")
+  eventsAsVoucher       Event[] @relation("EventVoucherTemplate")
 
   @@map("email_templates")
 }
@@ -112,4 +136,91 @@ model AdminUser {
   updatedAt DateTime @updatedAt
 
   @@map("admin_users")
+}
+
+model AppSettings {
+  id                      String   @id @default(cuid())
+  key                     String   @unique
+  value                   String
+  type                    String   // 'string', 'number', 'boolean', 'json'
+  description             String?
+  category                String   @default("general") // general, vouchers, events, etc
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+// ================================
+// NUEVOS MODELOS - Sistema Vales Regalo (Agosto 2024)
+// ================================
+
+model GiftVoucher {
+  id                String    @id @default(cuid())
+  code              String    @unique // GIFT-XXXX-XXXX
+  type              String    // 'amount' | 'event' | 'pack'
+  
+  // Valor
+  originalAmount    Float     // Valor original
+  currentBalance    Float     // Saldo actual
+  eventId           String?   // Si es para evento específico
+  event             Event?    @relation(fields: [eventId], references: [id])
+  ticketQuantity    Int?      // Cantidad de tickets para eventos específicos
+  
+  // Comprador
+  purchaserName     String
+  purchaserEmail    String
+  purchaseDate      DateTime  @default(now())
+  stripePaymentId   String?
+  stripeSessionId   String?   // Stripe Checkout Session ID
+  paymentStatus     String    @default("pending") // pending, completed, failed
+  paidAt            DateTime? // Cuando se completó el pago
+  
+  // Destinatario y entrega
+  recipientName     String?
+  recipientEmail    String?
+  personalMessage   String?
+  deliveryDate      DateTime? // Para envío programado (cuando se creó)
+  scheduledDeliveryDate DateTime? // Para envío programado real
+  
+  // Estado
+  status            String    @default("pending") // pending, active, used, expired, cancelled
+  expiryDate        DateTime  // Por defecto 1 año
+  activatedAt       DateTime?
+  
+  // PDF
+  pdfUrl            String?   // URL del PDF generado
+  templateUsed      String    @default("elegant")
+  
+  // Email tracking
+  purchaserEmailSent    Boolean   @default(false)
+  purchaserEmailSentAt  DateTime?
+  recipientEmailSent    Boolean   @default(false)
+  recipientEmailSentAt  DateTime?
+  expirationReminderSent Boolean  @default(false)
+  downloadCount         Int       @default(0)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relaciones
+  redemptions       VoucherRedemption[]
+  
+  @@index([code])
+  @@index([purchaserEmail])
+  @@index([status, expiryDate])
+  @@map("gift_vouchers")
+}
+
+model VoucherRedemption {
+  id            String      @id @default(cuid())
+  voucherId     String
+  voucher       GiftVoucher @relation(fields: [voucherId], references: [id])
+  bookingId     String      @unique
+  booking       Booking     @relation(fields: [bookingId], references: [id])
+  amountUsed    Float
+  redeemedAt    DateTime    @default(now())
+  
+  @@index([voucherId])
+  @@map("voucher_redemptions")
 }

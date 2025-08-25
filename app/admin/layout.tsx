@@ -3,6 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
+import { usePrefetch } from '@/lib/hooks'
 import { 
   Calendar, 
   Users, 
@@ -11,7 +12,8 @@ import {
   Mail, 
   LogOut,
   Home,
-  Ticket
+  Ticket,
+  Gift
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -19,6 +21,7 @@ const navigation = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: Home },
   { name: 'Eventos', href: '/admin/events', icon: Calendar },
   { name: 'Reservas', href: '/admin/bookings', icon: Ticket },
+  { name: 'Vales Regalo', href: '/admin/vouchers', icon: Gift },
   { name: 'Clientes', href: '/admin/customers', icon: Users },
   { name: 'Plantillas Email', href: '/admin/templates', icon: Mail },
   { name: 'Estadísticas', href: '/admin/stats', icon: BarChart3 },
@@ -33,6 +36,20 @@ export default function AdminLayout({
   const { data: session, status } = useSession()
   const router = useRouter()
   const pathname = usePathname()
+  
+  // OPTIMIZACIÓN FASE 2: Prefetching inteligente
+  const { prefetchRoute } = usePrefetch()
+
+  // Prefetch de las rutas más comunes al cargar
+  useEffect(() => {
+    const commonRoutes = ['/admin/events', '/admin/bookings', '/admin/dashboard']
+    commonRoutes.forEach(route => {
+      if (route !== pathname) {
+        router.prefetch(route) // Prefetch de Next.js
+        prefetchRoute(route)   // Prefetch de datos
+      }
+    })
+  }, [pathname, prefetchRoute, router])
 
   useEffect(() => {
     if (status === 'loading') return // Aún cargando
@@ -89,6 +106,14 @@ export default function AdminLayout({
                   className={`flex items-center px-6 py-3 text-sm hover:bg-gray-700 transition ${
                     isActive ? 'bg-gray-700 border-r-2 border-blue-500' : ''
                   }`}
+                  onMouseEnter={() => {
+                    // Prefetch en hover para navegación rápida
+                    if (!isActive) {
+                      console.log(`🔍 Prefetching on hover: ${item.name}`)
+                      router.prefetch(item.href) // Next.js route prefetch
+                      prefetchRoute(item.href)   // Data prefetch
+                    }
+                  }}
                 >
                   <Icon className="w-5 h-5 mr-3" />
                   {item.name}

@@ -87,10 +87,10 @@ function createMimeMessage(emailData: EmailData): string {
 // Funciones específicas para diferentes tipos de emails
 
 export async function sendBookingConfirmationEmail(booking: any): Promise<boolean> {
-  const emailTemplate = await getEmailTemplate('booking_confirmation')
+  const emailTemplate = await getEventEmailTemplate(booking.event, 'confirmation')
   
   if (!emailTemplate) {
-    console.error('Email template not found: booking_confirmation')
+    console.error('No email template found for booking confirmation')
     return false
   }
 
@@ -125,10 +125,10 @@ export async function sendBookingConfirmationEmail(booking: any): Promise<boolea
 }
 
 export async function sendBookingReminderEmail(booking: any): Promise<boolean> {
-  const emailTemplate = await getEmailTemplate('booking_reminder')
+  const emailTemplate = await getEventEmailTemplate(booking.event, 'reminder')
   
   if (!emailTemplate) {
-    console.error('Email template not found: booking_reminder')
+    console.error('No email template found for booking reminder')
     return false
   }
 
@@ -155,6 +155,56 @@ export async function sendBookingReminderEmail(booking: any): Promise<boolean> {
     subject,
     html,
   })
+}
+
+// Nueva función principal para obtener plantillas específicas del evento
+async function getEventEmailTemplate(event: any, type: 'confirmation' | 'reminder' | 'voucher') {
+  try {
+    const { db } = await import('@/lib/db')
+    
+    // 1. ¿El evento tiene plantilla específica asignada?
+    let templateId: string | null = null
+    if (type === 'confirmation') templateId = event.confirmationTemplateId
+    if (type === 'reminder') templateId = event.reminderTemplateId  
+    if (type === 'voucher') templateId = event.voucherTemplateId
+    
+    if (templateId) {
+      const specificTemplate = await db.emailTemplate.findUnique({
+        where: { id: templateId, active: true }
+      })
+      if (specificTemplate) {
+        console.log(`Using specific template for ${type}: ${specificTemplate.name}`)
+        return specificTemplate
+      }
+    }
+    
+    // 2. ¿Existe plantilla por categoría?
+    const categoryTemplateName = `${event.category}_${type}`
+    const categoryTemplate = await db.emailTemplate.findUnique({
+      where: { name: categoryTemplateName, active: true }
+    })
+    if (categoryTemplate) {
+      console.log(`Using category template for ${type}: ${categoryTemplate.name}`)
+      return categoryTemplate
+    }
+    
+    // 3. Usar plantilla genérica como fallback
+    const genericTemplateName = type === 'confirmation' ? 'booking_confirmation' : `booking_${type}`
+    const genericTemplate = await db.emailTemplate.findUnique({
+      where: { name: genericTemplateName, active: true }
+    })
+    if (genericTemplate) {
+      console.log(`Using generic template for ${type}: ${genericTemplate.name}`)
+      return genericTemplate
+    }
+    
+    console.error(`No template found for ${type} (event: ${event.title}, category: ${event.category})`)
+    return null
+    
+  } catch (error) {
+    console.error('Error fetching event email template:', error)
+    return null
+  }
 }
 
 async function getEmailTemplate(name: string) {

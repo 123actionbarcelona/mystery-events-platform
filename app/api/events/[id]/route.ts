@@ -27,18 +27,24 @@ export async function GET(
     try {
       event = await db.event.findUnique({
         where: { id },
-        include: isAdmin ? {
-          bookings: {
+        include: {
+          // Siempre incluir bookings para calcular disponibilidad
+          bookings: isAdmin ? {
             include: {
               tickets: true,
               customer: true,
             },
             orderBy: { createdAt: 'desc' },
+          } : {
+            select: {
+              quantity: true,
+              paymentStatus: true,
+            }
           },
-          _count: {
+          _count: isAdmin ? {
             select: { bookings: true }
-          }
-        } : undefined,
+          } : undefined
+        },
       })
     } catch (dbError) {
       console.log('Database not available, using mock data')
@@ -60,9 +66,9 @@ export async function GET(
       )
     }
 
-    // Calcular tickets disponibles
+    // Calcular tickets disponibles (contar todos los reservados: paid y pending)
     const bookedTickets = event.bookings?.reduce((total, booking) => {
-      return total + (booking.paymentStatus === 'completed' ? booking.quantity : 0)
+      return total + (['paid', 'pending'].includes(booking.paymentStatus) ? booking.quantity : 0)
     }, 0) || 0
 
     const eventWithAvailability = {
@@ -173,13 +179,16 @@ export async function PATCH(
       )
     }
 
+    // Await params in Next.js 15
+    const { id } = await params
+
     // Parsear y validar datos
     const body = await request.json()
     const { status } = eventStatusSchema.parse(body)
 
     // Verificar que el evento existe
     const existingEvent = await db.event.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!existingEvent) {
@@ -191,7 +200,7 @@ export async function PATCH(
 
     // Actualizar solo el estado
     const updatedEvent = await db.event.update({
-      where: { id: params.id },
+      where: { id },
       data: { status },
     })
 
@@ -229,9 +238,12 @@ export async function DELETE(
       )
     }
 
+    // Await params in Next.js 15
+    const { id } = await params
+
     // Verificar que el evento existe
     const existingEvent = await db.event.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: {
           select: { bookings: true }
@@ -266,7 +278,7 @@ export async function DELETE(
 
     // Eliminar evento
     await db.event.delete({
-      where: { id: params.id },
+      where: { id },
     })
 
     return NextResponse.json({ message: 'Evento eliminado correctamente' })

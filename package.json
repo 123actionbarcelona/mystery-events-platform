@@ -5,13 +5,15 @@
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "node scripts/build-db.js && next build",
     "start": "next start",
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:build": "node scripts/build-db.js",
+    "cleanup-supabase": "node scripts/cleanup-supabase-legacy.js",
     "postinstall": "prisma generate"
   },
   "keywords": [],
@@ -21,7 +23,10 @@
     "@auth/prisma-adapter": "^2.10.0",
     "@hookform/resolvers": "^5.2.1",
     "@prisma/client": "^6.14.0",
-    "@supabase/supabase-js": "^2.55.0",
+    "@radix-ui/react-separator": "^1.1.7",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@react-email/render": "^1.2.1",
+    "@react-pdf/renderer": "^4.3.0",
     "@tiptap/react": "^3.2.0",
     "@tiptap/starter-kit": "^3.2.0",
     "@types/bcrypt": "^6.0.0",
@@ -37,10 +42,12 @@
     "date-fns": "^4.1.0",
     "googleapis": "^156.0.0",
     "lucide-react": "^0.540.0",
+    "nanoid": "^5.1.5",
     "next": "^15.5.0",
     "next-auth": "^4.24.11",
     "postcss": "^8.4.0",
     "prisma": "^6.14.0",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.62.0",
@@ -51,5 +58,9 @@
     "tsx": "^4.20.4",
     "typescript": "^5.9.2",
     "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "dotenv": "^17.2.1"
   }
 }

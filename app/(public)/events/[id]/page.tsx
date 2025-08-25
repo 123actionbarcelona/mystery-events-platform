@@ -1,9 +1,5 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-export const dynamicParams = true
-export const revalidate = 0
-
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
@@ -22,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatPrice, formatDate } from '@/lib/utils'
+import EventImage from '@/components/public/event-image'
 import toast from 'react-hot-toast'
 
 interface Event {
@@ -175,15 +172,14 @@ export default function EventDetailPage({ params }: PageProps) {
           {/* Main Content */}
           <div className="lg:col-span-2">
             {/* Event Image */}
-            {event.imageUrl && (
-              <div className="h-96 rounded-lg overflow-hidden mb-6">
-                <img
-                  src={event.imageUrl}
-                  alt={event.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
+            <div className="h-96 rounded-lg overflow-hidden mb-6 relative">
+              <EventImage
+                src={event.imageUrl}
+                alt={event.title}
+                category={event.category}
+                className="w-full h-full"
+              />
+            </div>
 
             {/* Event Header */}
             <div className="flex items-start justify-between mb-6">
@@ -248,7 +244,7 @@ export default function EventDetailPage({ params }: PageProps) {
                 <Users className="h-5 w-5 text-purple-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Capacidad</p>
-                  <p className="font-medium">{event.availableTickets}/{event.capacity}</p>
+                  <p className="font-medium">{event.capacity - event.availableTickets}/{event.capacity}</p>
                 </div>
               </div>
             </div>

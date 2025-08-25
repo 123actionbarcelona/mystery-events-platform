@@ -1,0 +1,28 @@
+{
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/keep-alive",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/vouchers/scheduled",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/vouchers/expiration",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/notifications/cron",
+      "schedule": "0 8 * * *"
+    }
+  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install"
+}

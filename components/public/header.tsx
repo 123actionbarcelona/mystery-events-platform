@@ -3,14 +3,13 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, Calendar, Phone, Mail } from 'lucide-react'
+import { Menu, X, Calendar, Phone, Mail, Gift } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const navigation = [
   { name: 'Inicio', href: '/' },
   { name: 'Eventos', href: '/events' },
-  { name: 'Sobre Nosotros', href: '/about' },
-  { name: 'Contacto', href: '/contact' },
+  { name: 'Vales Regalo', href: '/gift-vouchers', icon: Gift },
 ]
 
 export function PublicHeader() {
@@ -40,12 +39,13 @@ export function PublicHeader() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center px-3 py-2 text-sm font-medium transition-colors ${
                   pathname === item.href
                     ? 'text-purple-600 border-b-2 border-purple-600'
                     : 'text-gray-700 hover:text-purple-600'
                 }`}
               >
+                {item.icon && <item.icon className="h-4 w-4 mr-1" />}
                 {item.name}
               </Link>
             ))}
@@ -87,13 +87,14 @@ export function PublicHeader() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`block px-3 py-2 text-base font-medium transition-colors ${
+                  className={`flex items-center px-3 py-2 text-base font-medium transition-colors ${
                     pathname === item.href
                       ? 'text-purple-600 bg-purple-50'
                       : 'text-gray-700 hover:text-purple-600 hover:bg-gray-50'
                   }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
+                  {item.icon && <item.icon className="h-4 w-4 mr-2" />}
                   {item.name}
                 </Link>
               ))}
