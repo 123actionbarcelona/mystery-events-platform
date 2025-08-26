@@ -11,6 +11,7 @@ const checkoutSchema = z.object({
   customerPhone: z.string().optional(),
   quantity: z.number().min(1).max(8),
   notes: z.string().optional(),
+  customFormData: z.record(z.any()).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -105,6 +106,31 @@ export async function POST(request: NextRequest) {
         },
       })
       tickets.push(ticket)
+    }
+
+    // Guardar respuestas del formulario personalizado si existen
+    if (validatedData.customFormData && Object.keys(validatedData.customFormData).length > 0) {
+      // Obtener los campos del formulario para este evento
+      const formFields = await db.eventFormField.findMany({
+        where: {
+          eventId: validatedData.eventId,
+          active: true,
+        },
+      })
+
+      // Guardar cada respuesta
+      for (const field of formFields) {
+        const value = validatedData.customFormData[field.fieldName]
+        if (value !== undefined && value !== null && value !== '') {
+          await db.formFieldResponse.create({
+            data: {
+              bookingId: booking.id,
+              fieldId: field.id,
+              value: Array.isArray(value) ? JSON.stringify(value) : String(value),
+            },
+          })
+        }
+      }
     }
 
     // Actualizar tickets disponibles temporalmente

@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { VoucherValidator, useVoucherValidator } from '@/components/public/voucher-validator'
+import DynamicFormFields from '@/components/public/dynamic-form-fields'
 import toast from 'react-hot-toast'
 
 interface Event {
@@ -70,6 +71,8 @@ export default function BookingPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [eventId, setEventId] = useState<string>('')
+  const [customFormData, setCustomFormData] = useState<Record<string, any>>({})
+  const [customFormErrors, setCustomFormErrors] = useState<Record<string, string>>({})
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -148,16 +151,25 @@ export default function BookingPage({ params }: PageProps) {
   const onSubmit = async (data: BookingFormData) => {
     if (!event) return
     
+    // Validar campos personalizados si existen
+    const hasCustomErrors = Object.keys(customFormErrors).some(key => customFormErrors[key])
+    if (hasCustomErrors) {
+      toast.error('Por favor completa todos los campos obligatorios')
+      return
+    }
+    
     setSubmitting(true)
     
     try {
-      // Preparar datos de la reserva incluyendo información del vale
+      // Preparar datos de la reserva incluyendo información del vale y campos personalizados
       const bookingData = {
         eventId: event.id,
         ...data,
         // Añadir información del vale si está aplicado
         voucherCode: isVoucherApplied ? voucherData?.voucher?.code : undefined,
-        paymentBreakdown: isVoucherApplied ? paymentBreakdown : undefined
+        paymentBreakdown: isVoucherApplied ? paymentBreakdown : undefined,
+        // Añadir campos personalizados
+        customFormData: customFormData
       }
 
       // Elegir endpoint según si hay vale aplicado o no
@@ -350,6 +362,23 @@ export default function BookingPage({ params }: PageProps) {
                       </div>
                     </div>
                   </div>
+
+                  {/* Dynamic Custom Form Fields */}
+                  <DynamicFormFields
+                    eventId={event.id}
+                    values={customFormData}
+                    errors={customFormErrors}
+                    onChange={(fieldName, value) => {
+                      setCustomFormData(prev => ({ ...prev, [fieldName]: value }))
+                      // Clear error when field is filled
+                      if (value) {
+                        setCustomFormErrors(prev => {
+                          const { [fieldName]: _, ...rest } = prev
+                          return rest
+                        })
+                      }
+                    }}
+                  />
 
                   {/* Voucher Validator */}
                   <VoucherValidator

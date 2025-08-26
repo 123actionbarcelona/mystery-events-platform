@@ -42,6 +42,15 @@ interface BookingDetail {
     status: string
     usedAt?: string
   }>
+  formResponses?: Array<{
+    id: string
+    value: string
+    field: {
+      label: string
+      fieldName: string
+      fieldType: string
+    }
+  }>
 }
 
 export default function BookingDetailPage() {
@@ -338,6 +347,41 @@ export default function BookingDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Respuestas del Formulario Personalizado */}
+      {booking.formResponses && booking.formResponses.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Información Adicional del Cliente</CardTitle>
+            <CardDescription>
+              Respuestas del formulario personalizado del evento
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {booking.formResponses.map((response) => (
+                <div key={response.id}>
+                  <label className="text-sm font-medium text-gray-500">
+                    {response.field.label}
+                  </label>
+                  <p className="text-sm mt-1">
+                    {response.field.fieldType === 'checkbox' || response.field.fieldType === 'multiselect'
+                      ? (() => {
+                          try {
+                            const parsed = JSON.parse(response.value)
+                            return Array.isArray(parsed) ? parsed.join(', ') : response.value
+                          } catch {
+                            return response.value
+                          }
+                        })()
+                      : response.value || '-'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Información Adicional */}
       <Card>

@@ -56,6 +56,17 @@ export async function GET(
             status: true,
             usedAt: true,
           }
+        },
+        formResponses: {
+          include: {
+            field: {
+              select: {
+                label: true,
+                fieldName: true,
+                fieldType: true,
+              }
+            }
+          }
         }
       }
     })

@@ -12,6 +12,7 @@ const voucherCheckoutSchema = z.object({
   quantity: z.number().min(1).max(8),
   notes: z.string().optional(),
   voucherCode: z.string().min(1),
+  customFormData: z.record(z.any()).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -133,6 +134,29 @@ export async function POST(request: NextRequest) {
         tickets.push(ticket)
       }
 
+      // Guardar respuestas del formulario personalizado si existen
+      if (validatedData.customFormData && Object.keys(validatedData.customFormData).length > 0) {
+        const formFields = await db.eventFormField.findMany({
+          where: {
+            eventId: validatedData.eventId,
+            active: true,
+          },
+        })
+
+        for (const field of formFields) {
+          const value = validatedData.customFormData[field.fieldName]
+          if (value !== undefined && value !== null && value !== '') {
+            await db.formFieldResponse.create({
+              data: {
+                bookingId: booking.id,
+                fieldId: field.id,
+                value: Array.isArray(value) ? JSON.stringify(value) : String(value),
+              },
+            })
+          }
+        }
+      }
+
       // Actualizar tickets disponibles
       await db.event.update({
         where: { id: validatedData.eventId },
@@ -233,6 +257,29 @@ export async function POST(request: NextRequest) {
             status: 'valid',
           },
         })
+      }
+
+      // Guardar respuestas del formulario personalizado si existen  
+      if (validatedData.customFormData && Object.keys(validatedData.customFormData).length > 0) {
+        const formFields = await db.eventFormField.findMany({
+          where: {
+            eventId: validatedData.eventId,
+            active: true,
+          },
+        })
+
+        for (const field of formFields) {
+          const value = validatedData.customFormData[field.fieldName]
+          if (value !== undefined && value !== null && value !== '') {
+            await db.formFieldResponse.create({
+              data: {
+                bookingId: booking.id,
+                fieldId: field.id,
+                value: Array.isArray(value) ? JSON.stringify(value) : String(value),
+              },
+            })
+          }
+        }
       }
 
       // Reservar tickets temporalmente

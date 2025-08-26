@@ -39,6 +39,7 @@ model Event {
   // Relaciones existentes
   bookings         Booking[]
   giftVouchers     GiftVoucher[] // NUEVO - Vales para evento específico
+  formFields       EventFormField[] // Campos de formulario personalizados
   
   // NUEVAS RELACIONES - Plantillas específicas
   confirmationTemplate   EmailTemplate? @relation("EventConfirmationTemplate", fields: [confirmationTemplateId], references: [id])
@@ -75,6 +76,7 @@ model Booking {
   tickets           Ticket[]
   customer          Customer @relation(fields: [customerEmail], references: [email])
   voucherRedemption VoucherRedemption?
+  formResponses     FormFieldResponse[] // Respuestas del formulario personalizado
 
   @@map("bookings")
 }
@@ -225,4 +227,62 @@ model VoucherRedemption {
   
   @@index([voucherId])
   @@map("voucher_redemptions")
+}
+
+// Modelo para campos de formulario personalizados por evento
+model EventFormField {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  // Configuración del campo
+  label         String   // Etiqueta visible: "¿Tienes alergias alimentarias?"
+  fieldName     String   // Nombre interno: "allergies"
+  fieldType     String   // text, email, phone, dropdown, checkbox, radio, date, number, textarea
+  placeholder   String?  // Texto de ayuda
+  required      Boolean  @default(false)
+  
+  // Opciones para dropdowns, checkbox, radio
+  options       String?  // JSON array de opciones: ["Opción 1", "Opción 2"]
+  
+  // Validaciones
+  minLength     Int?
+  maxLength     Int?
+  minValue      Float?
+  maxValue      Float?
+  pattern       String?  // Regex para validación
+  
+  // Orden y estado
+  order         Int      @default(0)
+  active        Boolean  @default(true)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Respuestas de este campo
+  responses     FormFieldResponse[]
+  
+  @@unique([eventId, fieldName])
+  @@index([eventId])
+  @@map("event_form_fields")
+}
+
+// Modelo para almacenar las respuestas del formulario
+model FormFieldResponse {
+  id            String   @id @default(cuid())
+  bookingId     String
+  booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  fieldId       String
+  field         EventFormField @relation(fields: [fieldId], references: [id])
+  
+  // Valor de la respuesta (guardamos todo como texto)
+  value         String
+  
+  createdAt     DateTime @default(now())
+  
+  @@unique([bookingId, fieldId])
+  @@index([bookingId])
+  @@index([fieldId])
+  @@map("form_field_responses")
 }
