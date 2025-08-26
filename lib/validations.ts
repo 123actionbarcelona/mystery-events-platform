@@ -24,11 +24,21 @@ export const eventSchema = z.object({
   location: z.string().min(1, 'La ubicación es obligatoria').max(200, 'Máximo 200 caracteres'),
   capacity: z.number().min(1, 'Mínimo 1 persona').max(100, 'Máximo 100 personas'),
   price: z.number().min(0, 'El precio no puede ser negativo').max(1000, 'Máximo €1000'),
+  minTickets: z.number().min(1, 'Mínimo 1 ticket').max(20, 'Máximo 20 tickets').optional().default(2),
+  maxTickets: z.number().min(1, 'Mínimo 1 ticket').max(50, 'Máximo 50 tickets').optional().default(10),
   status: z.enum(['draft', 'active', 'soldout', 'cancelled']).optional().default('draft'),
   // Template fields - opcionales para personalización por evento
   confirmationTemplateId: z.string().nullable().optional(),
   reminderTemplateId: z.string().nullable().optional(),
   voucherTemplateId: z.string().nullable().optional(),
+}).refine((data) => {
+  if (data.minTickets && data.maxTickets) {
+    return data.minTickets <= data.maxTickets
+  }
+  return true
+}, {
+  message: 'El mínimo de tickets no puede ser mayor al máximo',
+  path: ['minTickets'],
 })
 
 export type EventFormData = z.infer<typeof eventSchema>

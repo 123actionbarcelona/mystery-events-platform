@@ -23,6 +23,8 @@ model Event {
   capacity         Int
   availableTickets Int
   price            Float    // EUR
+  minTickets       Int      @default(2)  // Número mínimo de tickets por compra
+  maxTickets       Int      @default(10) // Número máximo de tickets por compra
   status           String   @default("draft") // draft, active, soldout, cancelled
   calendarEventId  String?  // Google Calendar Event ID
   

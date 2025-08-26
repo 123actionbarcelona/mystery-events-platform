@@ -34,6 +34,8 @@ interface Event {
   capacity: number
   availableTickets: number
   price: number
+  minTickets: number
+  maxTickets: number
   status: string
 }
 
@@ -58,7 +60,7 @@ const categoryDescriptions = {
 export default function EventDetailPage({ params }: PageProps) {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedTickets, setSelectedTickets] = useState(1)
+  const [selectedTickets, setSelectedTickets] = useState(2)
   const [isFavorite, setIsFavorite] = useState(false)
   const [eventId, setEventId] = useState<string>('')
   const router = useRouter()
@@ -80,6 +82,10 @@ export default function EventDetailPage({ params }: PageProps) {
         if (response.ok) {
           const eventData = await response.json()
           setEvent(eventData)
+          // Establecer la cantidad mínima de tickets
+          if (eventData.minTickets && eventData.minTickets > 1) {
+            setSelectedTickets(eventData.minTickets)
+          }
         } else {
           toast.error('Evento no encontrado')
           router.push('/events')
@@ -338,17 +344,30 @@ export default function EventDetailPage({ params }: PageProps) {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Número de tickets
+                        {event.minTickets > 1 && (
+                          <span className="text-xs text-gray-500 ml-2">
+                            (Mínimo: {event.minTickets})
+                          </span>
+                        )}
                       </label>
                       <select
                         value={selectedTickets}
                         onChange={(e) => setSelectedTickets(Number(e.target.value))}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       >
-                        {[...Array(Math.min(event.availableTickets, 8))].map((_, i) => (
-                          <option key={i + 1} value={i + 1}>
-                            {i + 1} {i === 0 ? 'ticket' : 'tickets'}
-                          </option>
-                        ))}
+                        {(() => {
+                          const min = event.minTickets || 2
+                          const max = Math.min(event.availableTickets, event.maxTickets || 10)
+                          const options = []
+                          for (let i = min; i <= max; i++) {
+                            options.push(
+                              <option key={i} value={i}>
+                                {i} {i === 1 ? 'ticket' : 'tickets'}
+                              </option>
+                            )
+                          }
+                          return options
+                        })()}
                       </select>
                     </div>
 

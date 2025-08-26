@@ -400,25 +400,59 @@ export function EventForm({ event, onSubmit, onCancel, isLoading }: EventFormPro
             </div>
           </div>
 
-          {/* Precio */}
-          <div className="max-w-xs">
-            <Label htmlFor="price">Precio (€) *</Label>
-            <div className="relative mt-1">
-              <Euro className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                {...register('price', { valueAsNumber: true })}
-                placeholder="35.00"
-                min="0"
-                max="1000"
-                className="pl-10"
-              />
+          {/* Precio y límites de compra */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <Label htmlFor="price">Precio (€) *</Label>
+              <div className="relative mt-1">
+                <Euro className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Input
+                  id="price"
+                  type="number"
+                  step="0.01"
+                  {...register('price', { valueAsNumber: true })}
+                  placeholder="35.00"
+                  min="0"
+                  max="1000"
+                  className="pl-10"
+                />
+              </div>
+              {errors.price && (
+                <p className="text-red-500 text-sm mt-1">{errors.price.message}</p>
+              )}
             </div>
-            {errors.price && (
-              <p className="text-red-500 text-sm mt-1">{errors.price.message}</p>
-            )}
+
+            <div>
+              <Label htmlFor="minTickets">Mínimo de tickets por compra</Label>
+              <Input
+                id="minTickets"
+                type="number"
+                {...register('minTickets', { valueAsNumber: true })}
+                placeholder="2"
+                min="1"
+                max="20"
+                className="mt-1"
+              />
+              {errors.minTickets && (
+                <p className="text-red-500 text-sm mt-1">{errors.minTickets.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="maxTickets">Máximo de tickets por compra</Label>
+              <Input
+                id="maxTickets"
+                type="number"
+                {...register('maxTickets', { valueAsNumber: true })}
+                placeholder="10"
+                min="1"
+                max="50"
+                className="mt-1"
+              />
+              {errors.maxTickets && (
+                <p className="text-red-500 text-sm mt-1">{errors.maxTickets.message}</p>
+              )}
+            </div>
           </div>
 
           {/* Plantillas de Email */}

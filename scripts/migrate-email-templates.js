@@ -55,7 +55,7 @@ const emailTemplates = [
   </div>
 </div>
     `,
-    variables: ['voucherCode', 'recipientName', 'purchaserName', 'personalMessage', 'amount', 'expirationDate'],
+    variables: JSON.stringify(['voucherCode', 'recipientName', 'purchaserName', 'personalMessage', 'amount', 'expirationDate']),
     active: true
   },
   {
@@ -93,7 +93,7 @@ const emailTemplates = [
   </div>
 </div>
     `,
-    variables: ['purchaserName', 'voucherCode', 'amount', 'recipientName', 'recipientEmail', 'personalMessage'],
+    variables: JSON.stringify(['purchaserName', 'voucherCode', 'amount', 'recipientName', 'recipientEmail', 'personalMessage']),
     active: true
   }
 ]

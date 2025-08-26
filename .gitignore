@@ -38,3 +38,10 @@ next-env.d.ts
 
 # prisma
 prisma/dev.db*
+
+# database files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+/backups/

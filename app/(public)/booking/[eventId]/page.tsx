@@ -40,6 +40,8 @@ interface Event {
   capacity: number
   availableTickets: number
   price: number
+  minTickets: number
+  maxTickets: number
   status: string
 }
 
@@ -47,17 +49,21 @@ interface PageProps {
   params: Promise<{ eventId: string }>
 }
 
-const bookingSchema = z.object({
-  customerName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  customerEmail: z.string().email('Email inválido'),
-  customerPhone: z.string().min(9, 'Teléfono inválido').optional().or(z.literal('')),
-  quantity: z.number().min(1, 'Mínimo 1 ticket').max(8, 'Máximo 8 tickets'),
-  notes: z.string().optional(),
-  acceptTerms: z.boolean().refine(val => val === true, 'Debes aceptar los términos'),
-  acceptMarketing: z.boolean().optional(),
-})
+const createBookingSchema = (minTickets: number = 2, maxTickets: number = 10) => {
+  return z.object({
+    customerName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
+    customerEmail: z.string().email('Email inválido'),
+    customerPhone: z.string().min(9, 'Teléfono inválido').optional().or(z.literal('')),
+    quantity: z.number()
+      .min(minTickets, `Mínimo ${minTickets} ticket${minTickets > 1 ? 's' : ''}`)
+      .max(maxTickets, `Máximo ${maxTickets} tickets`),
+    notes: z.string().optional(),
+    acceptTerms: z.boolean().refine(val => val === true, 'Debes aceptar los términos'),
+    acceptMarketing: z.boolean().optional(),
+  })
+}
 
-type BookingFormData = z.infer<typeof bookingSchema>
+type BookingFormData = z.infer<ReturnType<typeof createBookingSchema>>
 
 export default function BookingPage({ params }: PageProps) {
   const [event, setEvent] = useState<Event | null>(null)
@@ -67,7 +73,7 @@ export default function BookingPage({ params }: PageProps) {
   
   const router = useRouter()
   const searchParams = useSearchParams()
-  const initialTickets = Number(searchParams.get('tickets')) || 1
+  const initialTickets = Number(searchParams.get('tickets')) || 2
 
   const {
     register,
@@ -76,9 +82,14 @@ export default function BookingPage({ params }: PageProps) {
     setValue,
     formState: { errors },
   } = useForm<BookingFormData>({
-    resolver: zodResolver(bookingSchema),
+    resolver: zodResolver(
+      createBookingSchema(
+        event?.minTickets || 2,
+        event?.maxTickets || 10
+      )
+    ),
     defaultValues: {
-      quantity: initialTickets,
+      quantity: Math.max(initialTickets, event?.minTickets || 2),
       acceptTerms: false,
       acceptMarketing: false,
     },
@@ -112,6 +123,12 @@ export default function BookingPage({ params }: PageProps) {
         if (response.ok) {
           const eventData = await response.json()
           setEvent(eventData)
+          // Establecer la cantidad mínima como valor por defecto
+          const minQty = eventData.minTickets || 2
+          const currentQty = watch('quantity')
+          if (currentQty < minQty) {
+            setValue('quantity', minQty)
+          }
         } else {
           toast.error('Evento no encontrado')
           router.push('/events')
@@ -287,19 +304,37 @@ export default function BookingPage({ params }: PageProps) {
                     <h3 className="text-lg font-semibold mb-4">Detalles de la Reserva</h3>
                     <div className="space-y-4">
                       <div>
-                        <Label htmlFor="quantity">Número de tickets *</Label>
+                        <Label htmlFor="quantity">
+                          Número de tickets * 
+                          <span className="text-sm text-gray-500 ml-2">
+                            (Mínimo: {event.minTickets || 2}, Máximo: {event.maxTickets || 10})
+                          </span>
+                        </Label>
                         <select
                           {...register('quantity', { valueAsNumber: true })}
                           className="w-full mt-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         >
-                          {[...Array(Math.min(event.availableTickets, 8))].map((_, i) => (
-                            <option key={i + 1} value={i + 1}>
-                              {i + 1} {i === 0 ? 'ticket' : 'tickets'}
-                            </option>
-                          ))}
+                          {(() => {
+                            const min = event.minTickets || 2
+                            const max = Math.min(event.availableTickets, event.maxTickets || 10)
+                            const options = []
+                            for (let i = min; i <= max; i++) {
+                              options.push(
+                                <option key={i} value={i}>
+                                  {i} {i === 1 ? 'ticket' : 'tickets'}
+                                </option>
+                              )
+                            }
+                            return options
+                          })()}
                         </select>
                         {errors.quantity && (
                           <p className="text-red-500 text-sm mt-1">{errors.quantity.message}</p>
+                        )}
+                        {event.minTickets > 1 && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            Este evento requiere una compra mínima de {event.minTickets} tickets.
+                          </p>
                         )}
                       </div>
 
