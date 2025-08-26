@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { mockRecentBookings } from '@/lib/mock-data'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,16 +15,35 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const limit = parseInt(searchParams.get('limit') || '50')
     const page = parseInt(searchParams.get('page') || '1')
     const skip = (page - 1) * limit
-
-    let bookings, total
+    const search = searchParams.get('search') || ''
+    const status = searchParams.get('status') || 'all'
 
     try {
-      // Intentar obtener reservas reales de la base de datos
-      [bookings, total] = await Promise.all([
+      console.log('🔄 Fetching bookings from database...')
+      
+      // Construir filtros de búsqueda
+      const whereClause: any = {}
+      
+      if (search) {
+        whereClause.OR = [
+          { bookingCode: { contains: search, mode: 'insensitive' } },
+          { customerName: { contains: search, mode: 'insensitive' } },
+          { customerEmail: { contains: search, mode: 'insensitive' } },
+          { event: { title: { contains: search, mode: 'insensitive' } } }
+        ]
+      }
+      
+      if (status !== 'all') {
+        whereClause.paymentStatus = status
+      }
+
+      // Query optimizada con datos relacionados
+      const [bookings, total] = await Promise.all([
         db.booking.findMany({
+          where: whereClause,
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
@@ -43,30 +61,62 @@ export async function GET(request: NextRequest) {
                 email: true,
               }
             },
-            tickets: true,
+            tickets: {
+              select: {
+                id: true,
+                ticketCode: true,
+                status: true
+              }
+            },
           }
         }),
-        db.booking.count()
+        db.booking.count({ where: whereClause })
       ])
 
+      const response = {
+        bookings,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        },
+        filters: {
+          search,
+          status
+        }
+      }
+
+      console.log('✅ Bookings loaded:', {
+        count: bookings.length,
+        total,
+        filters: { search, status }
+      })
+
+      return NextResponse.json(response, {
+        headers: {
+          'Cache-Control': 'max-age=30, stale-while-revalidate=300'
+        }
+      })
+
     } catch (dbError) {
-      console.log('Database not available, using mock bookings')
-      bookings = mockRecentBookings.slice(skip, skip + limit)
-      total = mockRecentBookings.length
+      console.error('❌ Database error:', dbError)
+      
+      // Fallback simple sin mock data
+      return NextResponse.json({
+        bookings: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0
+        },
+        error: 'Database temporarily unavailable'
+      })
     }
 
-    return NextResponse.json({
-      bookings,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
-      }
-    })
-
   } catch (error) {
-    console.error('Error fetching admin bookings:', error)
+    console.error('❌ Complete bookings API failure:', error)
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

@@ -1,9 +1,5 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-export const dynamicParams = true
-export const revalidate = 0
-
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
@@ -22,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatPrice, formatDate } from '@/lib/utils'
+import EventImage from '@/components/public/event-image'
 import toast from 'react-hot-toast'
 
 interface Event {
@@ -37,6 +34,8 @@ interface Event {
   capacity: number
   availableTickets: number
   price: number
+  minTickets: number
+  maxTickets: number
   status: string
 }
 
@@ -61,7 +60,7 @@ const categoryDescriptions = {
 export default function EventDetailPage({ params }: PageProps) {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedTickets, setSelectedTickets] = useState(1)
+  const [selectedTickets, setSelectedTickets] = useState(2)
   const [isFavorite, setIsFavorite] = useState(false)
   const [eventId, setEventId] = useState<string>('')
   const router = useRouter()
@@ -79,10 +78,20 @@ export default function EventDetailPage({ params }: PageProps) {
     
     const fetchEvent = async () => {
       try {
-        const response = await fetch(`/api/events/${eventId}`)
+        // Añadir timestamp para evitar caché
+        const response = await fetch(`/api/events/${eventId}?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        })
         if (response.ok) {
           const eventData = await response.json()
           setEvent(eventData)
+          // Establecer la cantidad mínima de tickets
+          if (eventData.minTickets && eventData.minTickets > 1) {
+            setSelectedTickets(eventData.minTickets)
+          }
         } else {
           toast.error('Evento no encontrado')
           router.push('/events')
@@ -97,6 +106,11 @@ export default function EventDetailPage({ params }: PageProps) {
     }
 
     fetchEvent()
+    
+    // Auto-refresh cada 30 segundos para actualizar disponibilidad
+    const interval = setInterval(fetchEvent, 30000)
+    
+    return () => clearInterval(interval)
   }, [eventId, router])
 
   const handleBooking = () => {
@@ -175,15 +189,14 @@ export default function EventDetailPage({ params }: PageProps) {
           {/* Main Content */}
           <div className="lg:col-span-2">
             {/* Event Image */}
-            {event.imageUrl && (
-              <div className="h-96 rounded-lg overflow-hidden mb-6">
-                <img
-                  src={event.imageUrl}
-                  alt={event.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
+            <div className="h-96 rounded-lg overflow-hidden mb-6 relative">
+              <EventImage
+                src={event.imageUrl}
+                alt={event.title}
+                category={event.category}
+                className="w-full h-full"
+              />
+            </div>
 
             {/* Event Header */}
             <div className="flex items-start justify-between mb-6">
@@ -248,7 +261,7 @@ export default function EventDetailPage({ params }: PageProps) {
                 <Users className="h-5 w-5 text-purple-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Capacidad</p>
-                  <p className="font-medium">{event.availableTickets}/{event.capacity}</p>
+                  <p className="font-medium">{event.capacity - event.availableTickets}/{event.capacity}</p>
                 </div>
               </div>
             </div>
@@ -342,17 +355,30 @@ export default function EventDetailPage({ params }: PageProps) {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Número de tickets
+                        {event.minTickets > 1 && (
+                          <span className="text-xs text-gray-500 ml-2">
+                            (Mínimo: {event.minTickets})
+                          </span>
+                        )}
                       </label>
                       <select
                         value={selectedTickets}
                         onChange={(e) => setSelectedTickets(Number(e.target.value))}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       >
-                        {[...Array(Math.min(event.availableTickets, 8))].map((_, i) => (
-                          <option key={i + 1} value={i + 1}>
-                            {i + 1} {i === 0 ? 'ticket' : 'tickets'}
-                          </option>
-                        ))}
+                        {(() => {
+                          const min = event.minTickets || 2
+                          const max = Math.min(event.availableTickets, event.maxTickets || 10)
+                          const options = []
+                          for (let i = min; i <= max; i++) {
+                            options.push(
+                              <option key={i} value={i}>
+                                {i} {i === 1 ? 'ticket' : 'tickets'}
+                              </option>
+                            )
+                          }
+                          return options
+                        })()}
                       </select>
                     </div>
 

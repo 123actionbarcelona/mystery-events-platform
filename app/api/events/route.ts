@@ -60,11 +60,23 @@ export async function GET(request: NextRequest) {
           orderBy: { date: 'asc' },
           skip,
           take: filters.limit,
-          include: isAdmin ? {
-            _count: {
+          include: {
+            // Siempre incluir bookings para calcular disponibilidad
+            bookings: isAdmin ? {
+              include: {
+                customer: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            } : {
+              select: {
+                quantity: true,
+                paymentStatus: true,
+              }
+            },
+            _count: isAdmin ? {
               select: { bookings: true }
-            }
-          } : undefined,
+            } : undefined,
+          },
         }),
         db.event.count({ where }),
       ])
@@ -83,11 +95,17 @@ export async function GET(request: NextRequest) {
       total = mockResult.pagination.total
     }
 
-    // Calcular tickets disponibles para eventos públicos
-    const eventsWithAvailability = events.map(event => ({
-      ...event,
-      availableTickets: event.capacity - (event._count?.bookings || 0),
-    }))
+    // Usar availableTickets directamente de la DB (ya se actualiza correctamente)
+    const eventsWithAvailability = events.map(event => {
+      // El campo availableTickets ya viene actualizado de la DB
+      const bookedTickets = event.capacity - event.availableTickets
+
+      return {
+        ...event,
+        availableTickets: event.availableTickets, // Usar valor de DB directamente
+        bookedTickets, // Incluir para debugging
+      }
+    })
 
     return NextResponse.json({
       events: eventsWithAvailability,
@@ -96,6 +114,12 @@ export async function GET(request: NextRequest) {
         limit: filters.limit,
         total,
         totalPages: Math.ceil(total / filters.limit),
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       }
     })
 

@@ -169,7 +169,8 @@ export async function syncEventToCalendar(event: any): Promise<CalendarResult> {
 
 export async function addAttendeeToCalendarEvent(
   calendarEventId: string,
-  attendeeEmail: string
+  attendeeEmail: string,
+  attendeeName?: string
 ): Promise<boolean> {
   try {
     // Obtener evento actual
@@ -191,8 +192,12 @@ export async function addAttendeeToCalendarEvent(
       return true // Ya está agregado
     }
 
-    // Agregar nuevo asistente
-    const updatedAttendees = [...existingAttendees, { email: attendeeEmail }]
+    // Agregar nuevo asistente con nombre opcional
+    const newAttendee: any = { email: attendeeEmail }
+    if (attendeeName) {
+      newAttendee.displayName = attendeeName
+    }
+    const updatedAttendees = [...existingAttendees, newAttendee]
 
     await calendar.events.update({
       auth: oauth2Client,
@@ -209,6 +214,88 @@ export async function addAttendeeToCalendarEvent(
 
   } catch (error) {
     console.error('Error adding attendee to calendar event:', error)
+    return false
+  }
+}
+
+// Nueva función para actualizar el evento con los totales de reservas
+export async function updateCalendarEventWithBookingTotals(
+  calendarEventId: string,
+  eventData: {
+    title: string
+    totalTicketsSold: number
+    availableTickets: number
+    capacity: number
+    attendeeEmail?: string
+    attendeeName?: string
+  }
+): Promise<boolean> {
+  try {
+    // Obtener evento actual de Google Calendar
+    const eventResponse = await calendar.events.get({
+      auth: oauth2Client,
+      calendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
+      eventId: calendarEventId,
+    })
+
+    const currentEvent = eventResponse.data
+    const existingAttendees = currentEvent.attendees || []
+    
+    // Agregar nuevo asistente si se proporciona
+    let updatedAttendees = existingAttendees
+    if (eventData.attendeeEmail) {
+      const attendeeExists = existingAttendees.some(
+        attendee => attendee.email === eventData.attendeeEmail
+      )
+      
+      if (!attendeeExists) {
+        const newAttendee: any = { email: eventData.attendeeEmail }
+        if (eventData.attendeeName) {
+          newAttendee.displayName = eventData.attendeeName
+        }
+        updatedAttendees = [...existingAttendees, newAttendee]
+      }
+    }
+
+    // Actualizar título con los totales
+    const updatedTitle = `${eventData.title} - ${eventData.totalTicketsSold}/${eventData.capacity} tickets vendidos`
+    
+    // Actualizar descripción con información detallada
+    const originalDescription = currentEvent.description || ''
+    const descriptionLines = originalDescription.split('\n')
+    
+    // Buscar línea con estadísticas o agregarla
+    const statsLineIndex = descriptionLines.findIndex(line => line.startsWith('📊'))
+    const statsLine = `📊 Tickets vendidos: ${eventData.totalTicketsSold}/${eventData.capacity} | Disponibles: ${eventData.availableTickets}`
+    
+    if (statsLineIndex >= 0) {
+      descriptionLines[statsLineIndex] = statsLine
+    } else {
+      // Agregar al principio de la descripción
+      descriptionLines.unshift(statsLine)
+      descriptionLines.unshift('') // Línea en blanco después de las estadísticas
+    }
+    
+    const updatedDescription = descriptionLines.join('\n')
+
+    // Actualizar el evento en Google Calendar
+    await calendar.events.update({
+      auth: oauth2Client,
+      calendarId: process.env.GOOGLE_CALENDAR_ID || 'primary',
+      eventId: calendarEventId,
+      requestBody: {
+        ...currentEvent,
+        summary: updatedTitle,
+        description: updatedDescription,
+        attendees: updatedAttendees,
+      },
+    })
+
+    console.log(`Calendar event updated: ${updatedTitle}`)
+    return true
+
+  } catch (error) {
+    console.error('Error updating calendar event with totals:', error)
     return false
   }
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { 
   Search, 
   Filter, 
@@ -18,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatPrice, formatDate } from '@/lib/utils'
+import EventImage from '@/components/public/event-image'
 
 interface Event {
   id: string
@@ -251,21 +253,14 @@ export default function EventsPage() {
                 {eventsData.events.map((event) => (
                   <Link key={event.id} href={`/events/${event.id}`} className="group">
                     <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1">
-                      {event.imageUrl ? (
-                        <div className="h-48 bg-gray-200 overflow-hidden">
-                          <img
-                            src={event.imageUrl}
-                            alt={event.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        </div>
-                      ) : (
-                        <div className="h-48 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
-                          <span className="text-6xl">
-                            {categoryIcons[event.category as keyof typeof categoryIcons]}
-                          </span>
-                        </div>
-                      )}
+                      <div className="h-48 relative">
+                        <EventImage
+                          src={event.imageUrl}
+                          alt={event.title}
+                          category={event.category}
+                          className="h-full w-full group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
                       
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">

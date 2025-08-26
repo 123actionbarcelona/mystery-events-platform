@@ -68,34 +68,19 @@ export function PublicFooter() {
             </ul>
           </div>
 
-          {/* Support */}
+          {/* Gift Vouchers */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Soporte</h3>
+            <h3 className="text-lg font-semibold mb-4">Vales Regalo</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/faq" className="text-gray-300 hover:text-white transition-colors">
-                  Preguntas Frecuentes
+                <Link href="/gift-vouchers" className="text-gray-300 hover:text-white transition-colors">
+                  Comprar Vale
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-gray-300 hover:text-white transition-colors">
-                  Contacto
-                </Link>
-              </li>
-              <li>
-                <Link href="/booking/status" className="text-gray-300 hover:text-white transition-colors">
-                  Estado de Reserva
-                </Link>
-              </li>
-              <li>
-                <Link href="/terms" className="text-gray-300 hover:text-white transition-colors">
-                  Términos y Condiciones
-                </Link>
-              </li>
-              <li>
-                <Link href="/privacy" className="text-gray-300 hover:text-white transition-colors">
-                  Política de Privacidad
-                </Link>
+                <p className="text-gray-300 text-sm">
+                  Regala experiencias únicas de misterio y aventura
+                </p>
               </li>
             </ul>
           </div>
@@ -142,15 +127,12 @@ export function PublicFooter() {
               © {currentYear} Mystery Events Platform. Todos los derechos reservados.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
-              <Link href="/terms" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Términos
-              </Link>
-              <Link href="/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Privacidad
-              </Link>
-              <Link href="/cookies" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Cookies
-              </Link>
+              <a href="mailto:info@mysteryevents.com" className="text-gray-400 hover:text-white text-sm transition-colors">
+                Soporte
+              </a>
+              <a href="tel:+34900123456" className="text-gray-400 hover:text-white text-sm transition-colors">
+                +34 900 123 456
+              </a>
             </div>
           </div>
         </div>

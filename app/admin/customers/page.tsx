@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useDebounce } from '@/lib/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,103 +21,76 @@ interface Customer {
   favoriteCategory?: string
 }
 
-// Mock data para mostrar mientras no hay BD
-const mockCustomers: Customer[] = [
-  {
-    id: "c1",
-    name: "Ana García",
-    email: "ana.garcia@email.com", 
-    phone: "+34 666 777 888",
-    totalBookings: 3,
-    totalSpent: 165.00,
-    lastBookingDate: "2025-08-20",
-    status: "active",
-    createdAt: "2025-06-15T10:30:00Z",
-    favoriteCategory: "murder"
-  },
-  {
-    id: "c2",
-    name: "Carlos López",
-    email: "carlos.lopez@email.com",
-    phone: "+34 699 888 999", 
-    totalBookings: 2,
-    totalSpent: 140.00,
-    lastBookingDate: "2025-08-20",
-    status: "active",
-    createdAt: "2025-07-01T09:15:00Z",
-    favoriteCategory: "escape"
-  },
-  {
-    id: "c3", 
-    name: "María Rodríguez",
-    email: "maria.rodriguez@email.com",
-    totalBookings: 1,
-    totalSpent: 35.00,
-    lastBookingDate: "2025-08-20", 
-    status: "active",
-    createdAt: "2025-08-19T08:45:00Z",
-    favoriteCategory: "detective"
-  },
-  {
-    id: "c4",
-    name: "José Martín", 
-    email: "jose.martin@email.com",
-    phone: "+34 611 222 333",
-    totalBookings: 4,
-    totalSpent: 280.00,
-    lastBookingDate: "2025-08-19",
-    status: "active",
-    createdAt: "2025-05-10T19:20:00Z",
-    favoriteCategory: "murder"
-  },
-  {
-    id: "c5",
-    name: "Laura Fernández",
-    email: "laura.fernandez@email.com",
-    totalBookings: 1,
-    totalSpent: 25.00,
-    lastBookingDate: "2025-06-15",
-    status: "inactive",
-    createdAt: "2025-04-20T14:30:00Z",
-    favoriteCategory: "escape"
-  }
-]
+interface CustomerStats {
+  totalCustomers: number
+  activeCustomers: number
+  totalRevenue: number
+  averageSpent: number
+}
+
+// Datos ahora vienen de la API /api/admin/customers
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<CustomerStats | null>(null)
+  
+  // OPTIMIZACIÓN: Debounce para búsquedas
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  useEffect(() => {
-    // Simular carga de datos
-    setTimeout(() => {
-      setCustomers(mockCustomers)
-      setFilteredCustomers(mockCustomers)
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true)
+    try {
+      console.time('⚡ Customers API Call')
+      
+      const params = new URLSearchParams()
+      if (debouncedSearchTerm) params.set('search', debouncedSearchTerm)
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      params.set('limit', '50')
+      
+      const response = await fetch(`/api/admin/customers?${params}`, {
+        cache: 'no-store'
+      })
+      
+      console.timeEnd('⚡ Customers API Call')
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCustomers(data.customers || [])
+        setStats(data.stats || null)
+        console.log('📊 Customers loaded:', data.customers?.length)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching customers:', error)
+    } finally {
       setLoading(false)
-    }, 500)
-  }, [])
+    }
+  }, [debouncedSearchTerm, statusFilter])
 
   useEffect(() => {
-    let filtered = customers
+    fetchCustomers()
+  }, [fetchCustomers])
 
-    // Filtrar por término de búsqueda
-    if (searchTerm) {
-      filtered = filtered.filter(customer => 
-        customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (customer.phone && customer.phone.includes(searchTerm))
-      )
-    }
-
-    // Filtrar por status
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(customer => customer.status === statusFilter)
-    }
-
-    setFilteredCustomers(filtered)
-  }, [customers, searchTerm, statusFilter])
+  // OPTIMIZACIÓN: Filtrado memoizado (ahora se hace en servidor)
+  const filteredCustomers = useMemo(() => {
+    // El filtrado se hace en el servidor, pero mantenemos capacidad local
+    return customers
+  }, [customers])
+  
+  // OPTIMIZACIÓN: Estadísticas memoizadas
+  const memoizedStats = useMemo(() => {
+    if (stats) return stats
+    
+    // Fallback calculations si no vienen del servidor
+    const totalCustomers = customers.length
+    const activeCustomers = customers.filter(c => c.status === 'active').length
+    const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0)
+    const averageSpent = totalCustomers > 0 ? totalRevenue / totalCustomers : 0
+    
+    return { totalCustomers, activeCustomers, totalRevenue, averageSpent }
+  }, [stats, customers])
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -227,35 +201,29 @@ export default function CustomersPage() {
         </CardContent>
       </Card>
 
-      {/* Stats rápidas */}
+      {/* Stats rápidas - OPTIMIZADAS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">{customers.length}</div>
+            <div className="text-2xl font-bold">{memoizedStats.totalCustomers}</div>
             <p className="text-sm text-gray-600">Total clientes</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">
-              {customers.filter(c => c.status === 'active').length}
-            </div>
+            <div className="text-2xl font-bold">{memoizedStats.activeCustomers}</div>
             <p className="text-sm text-gray-600">Activos</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">
-              {formatPrice(customers.reduce((sum, c) => sum + c.totalSpent, 0))}
-            </div>
+            <div className="text-2xl font-bold">{formatPrice(memoizedStats.totalRevenue)}</div>
             <p className="text-sm text-gray-600">Ingresos totales</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <div className="text-2xl font-bold">
-              {(customers.reduce((sum, c) => sum + c.totalSpent, 0) / customers.length).toFixed(0)}€
-            </div>
+            <div className="text-2xl font-bold">{memoizedStats.averageSpent.toFixed(0)}€</div>
             <p className="text-sm text-gray-600">Valor promedio</p>
           </CardContent>
         </Card>

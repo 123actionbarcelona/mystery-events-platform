@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { EventForm } from '@/components/admin/event-form'
+import FormBuilder from '@/components/admin/form-builder'
 import { EventFormData } from '@/lib/validations'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import toast from 'react-hot-toast'
 
 interface PageProps {
@@ -102,12 +104,28 @@ export default function EditEventPage({ params }: PageProps) {
         <p className="text-gray-600">Modifica los detalles del evento "{event.title}"</p>
       </div>
 
-      <EventForm
-        event={event}
-        onSubmit={handleSubmit}
-        onCancel={handleCancel}
-        isLoading={isLoading}
-      />
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="general">Información General</TabsTrigger>
+          <TabsTrigger value="form">Formulario Personalizado</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="general" className="mt-6">
+          <EventForm
+            event={event}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            isLoading={isLoading}
+          />
+        </TabsContent>
+        
+        <TabsContent value="form" className="mt-6">
+          <FormBuilder 
+            eventId={eventId}
+            onSave={() => toast.success('Formulario actualizado')}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

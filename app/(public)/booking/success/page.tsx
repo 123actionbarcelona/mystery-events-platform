@@ -1,9 +1,5 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-export const dynamicParams = true
-export const revalidate = 0
-
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -68,16 +64,31 @@ function BookingSuccessContent() {
 
     const verifyPayment = async () => {
       try {
-        // En una implementación real, verificaríamos el pago con Stripe
-        // const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}`)
-        
-        // Por ahora, simulamos la verificación y obtenemos la reserva
-        await new Promise(resolve => setTimeout(resolve, 2000)) // Simular verificación
-        
+        // Obtener detalles de la reserva
         const response = await fetch(`/api/bookings/${bookingId}`)
         if (response.ok) {
           const bookingData = await response.json()
           setBooking(bookingData)
+          
+          // Enviar confirmación (email + calendario)
+          try {
+            const confirmResponse = await fetch(`/api/bookings/${bookingId}/confirm`, {
+              method: 'POST'
+            })
+            
+            if (confirmResponse.ok) {
+              const confirmData = await confirmResponse.json()
+              if (confirmData.emailSent) {
+                toast.success('Email de confirmación enviado a ' + bookingData.customerEmail)
+              }
+              if (confirmData.calendarUpdated) {
+                toast.success('Evento añadido a Google Calendar')
+              }
+            }
+          } catch (confirmError) {
+            console.error('Error sending confirmation:', confirmError)
+            // No mostrar error al usuario si falla el email, la reserva ya está hecha
+          }
         } else {
           toast.error('Error al verificar el pago')
           router.push('/events')
@@ -150,9 +161,9 @@ function BookingSuccessContent() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Reserva no encontrada</h1>
-          <Button asChild>
-            <Link href="/events">Volver a eventos</Link>
-          </Button>
+          <Link href="/events">
+            <Button>Volver a eventos</Button>
+          </Link>
         </div>
       </div>
     )
@@ -352,31 +363,31 @@ function BookingSuccessContent() {
                   Compartir
                 </Button>
 
-                <Button asChild className="w-full" variant="outline">
-                  <Link href={`mailto:${booking.customerEmail}?subject=Tickets para ${booking.event.title}`}>
+                <Link href={`mailto:${booking.customerEmail}?subject=Tickets para ${booking.event.title}`}>
+                  <Button className="w-full" variant="outline">
                     <Mail className="h-4 w-4 mr-2" />
                     Reenviar por Email
-                  </Link>
-                </Button>
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
             {/* Navigation */}
             <Card>
               <CardContent className="pt-6 space-y-3">
-                <Button asChild className="w-full">
-                  <Link href="/events">
+                <Link href="/events">
+                  <Button className="w-full">
                     <Calendar className="h-4 w-4 mr-2" />
                     Ver Más Eventos
-                  </Link>
-                </Button>
+                  </Button>
+                </Link>
 
-                <Button asChild className="w-full" variant="outline">
-                  <Link href="/">
+                <Link href="/">
+                  <Button className="w-full" variant="outline">
                     <Home className="h-4 w-4 mr-2" />
                     Ir al Inicio
-                  </Link>
-                </Button>
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -418,12 +429,12 @@ function BookingSuccessContent() {
               Gracias por confiar en Mystery Events. Prepárate para vivir una experiencia 
               única llena de misterio, suspense y diversión inolvidable.
             </p>
-            <Button asChild variant="secondary">
-              <Link href="/events">
+            <Link href="/events">
+              <Button variant="secondary">
                 Descubrir Más Aventuras
                 <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

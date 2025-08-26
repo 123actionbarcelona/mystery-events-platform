@@ -44,7 +44,7 @@ async function main() {
         </ul>
         <p>¡Te esperamos!</p>
       `,
-      variables: {
+      variables: JSON.stringify({
         customerName: 'string',
         eventTitle: 'string',
         eventDate: 'string',
@@ -52,7 +52,7 @@ async function main() {
         eventLocation: 'string',
         bookingCode: 'string',
         quantity: 'number',
-      },
+      }),
     },
     {
       name: 'booking_reminder',
@@ -69,13 +69,13 @@ async function main() {
         </ul>
         <p>¡Nos vemos pronto!</p>
       `,
-      variables: {
+      variables: JSON.stringify({
         customerName: 'string',
         eventTitle: 'string',
         eventDate: 'string',
         eventTime: 'string',
         eventLocation: 'string',
-      },
+      }),
     },
   ]
 

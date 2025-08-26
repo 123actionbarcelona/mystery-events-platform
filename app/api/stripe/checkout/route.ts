@@ -11,6 +11,7 @@ const checkoutSchema = z.object({
   customerPhone: z.string().optional(),
   quantity: z.number().min(1).max(8),
   notes: z.string().optional(),
+  customFormData: z.record(z.any()).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -24,7 +25,31 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const validatedData = checkoutSchema.parse(body)
+    console.log('Checkout request body:', body)
+    
+    // Validar manualmente si hay problemas con Zod
+    let validatedData
+    try {
+      validatedData = checkoutSchema.parse(body)
+    } catch (zodError) {
+      console.error('Zod validation error:', zodError)
+      // Validación manual de fallback
+      if (!body.eventId || !body.customerName || !body.customerEmail || !body.quantity) {
+        return NextResponse.json(
+          { error: 'Datos de reserva incompletos' },
+          { status: 400 }
+        )
+      }
+      validatedData = {
+        eventId: body.eventId,
+        customerName: body.customerName,
+        customerEmail: body.customerEmail,
+        customerPhone: body.customerPhone || '',
+        quantity: Number(body.quantity),
+        notes: body.notes || '',
+        customFormData: body.customFormData || {}
+      }
+    }
 
     // Verificar que el evento existe y está disponible
     const event = await db.event.findUnique({
@@ -107,6 +132,31 @@ export async function POST(request: NextRequest) {
       tickets.push(ticket)
     }
 
+    // Guardar respuestas del formulario personalizado si existen
+    if (validatedData.customFormData && Object.keys(validatedData.customFormData).length > 0) {
+      // Obtener los campos del formulario para este evento
+      const formFields = await db.eventFormField.findMany({
+        where: {
+          eventId: validatedData.eventId,
+          active: true,
+        },
+      })
+
+      // Guardar cada respuesta
+      for (const field of formFields) {
+        const value = validatedData.customFormData[field.fieldName]
+        if (value !== undefined && value !== null && value !== '') {
+          await db.formFieldResponse.create({
+            data: {
+              bookingId: booking.id,
+              fieldId: field.id,
+              value: Array.isArray(value) ? JSON.stringify(value) : String(value),
+            },
+          })
+        }
+      }
+    }
+
     // Actualizar tickets disponibles temporalmente
     await db.event.update({
       where: { id: validatedData.eventId },
@@ -118,6 +168,14 @@ export async function POST(request: NextRequest) {
     })
 
     // Crear sesión de Stripe Checkout
+    // Construir URL completa para la imagen
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'
+    const imageUrl = event.imageUrl 
+      ? event.imageUrl.startsWith('http') 
+        ? event.imageUrl 
+        : `${baseUrl}${event.imageUrl}`
+      : null
+    
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -127,7 +185,7 @@ export async function POST(request: NextRequest) {
             product_data: {
               name: event.title,
               description: `${validatedData.quantity} ticket(s) para ${event.title}`,
-              images: event.imageUrl ? [event.imageUrl] : [],
+              images: imageUrl ? [imageUrl] : [],
               metadata: {
                 eventId: event.id,
                 bookingId: booking.id,
