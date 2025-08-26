@@ -50,18 +50,21 @@ export async function sendEmail(emailData: EmailData): Promise<boolean> {
 function createMimeMessage(emailData: EmailData): string {
   const boundary = 'boundary_' + Math.random().toString(36).substr(2, 9)
   
+  // Codificar el subject para UTF-8 usando formato MIME encoded-word
+  const encodedSubject = `=?UTF-8?B?${Buffer.from(emailData.subject, 'utf-8').toString('base64')}?=`
+  
   let message = [
     `From: Mystery Events <${process.env.GMAIL_FROM_EMAIL}>`,
     `To: ${emailData.to}`,
-    `Subject: ${emailData.subject}`,
+    `Subject: ${encodedSubject}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     '',
     `--${boundary}`,
     'Content-Type: text/html; charset=utf-8',
-    'Content-Transfer-Encoding: quoted-printable',
+    'Content-Transfer-Encoding: base64',
     '',
-    emailData.html,
+    Buffer.from(emailData.html, 'utf-8').toString('base64'),
   ].join('\n')
 
   // Añadir attachments si existen

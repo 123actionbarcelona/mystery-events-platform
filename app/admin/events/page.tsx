@@ -68,8 +68,15 @@ export default function EventsPage() {
       if (debouncedSearch) params.set('search', debouncedSearch)
       if (statusFilter) params.set('status', statusFilter)
       if (categoryFilter) params.set('category', categoryFilter)
+      // Añadir timestamp para evitar caché
+      params.set('t', Date.now().toString())
 
-      const response = await fetch(`/api/events?${params}`)
+      const response = await fetch(`/api/events?${params}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      })
       if (response.ok) {
         const data = await response.json()
         setEvents(data.events)
@@ -83,6 +90,11 @@ export default function EventsPage() {
 
   useEffect(() => {
     fetchEvents()
+    
+    // Auto-refresh cada 15 segundos para ver cambios en tiempo real
+    const interval = setInterval(fetchEvents, 15000)
+    
+    return () => clearInterval(interval)
   }, [debouncedSearch, statusFilter, categoryFilter])
 
   const handleDelete = useCallback(async (id: string) => {

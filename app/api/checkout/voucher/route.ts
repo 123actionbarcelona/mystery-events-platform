@@ -212,6 +212,88 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // IMPORTANTE: Enviar email de confirmación y crear evento en calendario
+      // Obtener la reserva completa con todos los datos necesarios
+      const fullBooking = await db.booking.findUnique({
+        where: { id: booking.id },
+        include: {
+          event: true,
+          tickets: true,
+          customer: true,
+        },
+      })
+
+      if (fullBooking) {
+        // Enviar email de confirmación
+        try {
+          const { sendBookingConfirmationEmail } = await import('@/lib/gmail')
+          const emailSent = await sendBookingConfirmationEmail(fullBooking)
+          if (emailSent) {
+            await db.booking.update({
+              where: { id: booking.id },
+              data: { confirmationSent: true },
+            })
+            console.log('✅ Email de confirmación enviado (pago con voucher)')
+          }
+        } catch (emailError) {
+          console.error('Error enviando email:', emailError)
+        }
+
+        // Crear evento en calendario
+        try {
+          const { createCalendarEvent, updateCalendarEventWithBookingTotals } = await import('@/lib/calendar')
+          
+          if (fullBooking.event.calendarEventId) {
+            // Si el evento ya existe, actualizar con totales
+            const totalTicketsSold = fullBooking.event.capacity - fullBooking.event.availableTickets
+            await updateCalendarEventWithBookingTotals(
+              fullBooking.event.calendarEventId,
+              {
+                title: fullBooking.event.title,
+                totalTicketsSold,
+                availableTickets: fullBooking.event.availableTickets,
+                capacity: fullBooking.event.capacity,
+                attendeeEmail: fullBooking.customerEmail,
+                attendeeName: fullBooking.customerName,
+              }
+            )
+            console.log('✅ Calendario actualizado con totales (pago con voucher)')
+          } else {
+            // Crear nuevo evento en calendario si no existe
+            const eventDate = new Date(fullBooking.event.date)
+            const [hours, minutes] = fullBooking.event.time.split(':').map(Number)
+            const year = eventDate.getFullYear()
+            const month = eventDate.getMonth()
+            const day = eventDate.getDate()
+            
+            const startDateTime = new Date(year, month, day, hours, minutes, 0)
+            const endDateTime = new Date(startDateTime)
+            endDateTime.setMinutes(endDateTime.getMinutes() + (fullBooking.event.duration || 120))
+            
+            const totalTicketsSold = fullBooking.event.capacity - fullBooking.event.availableTickets
+            const calendarEvent = await createCalendarEvent({
+              eventId: fullBooking.event.id,
+              title: `${fullBooking.event.title} - ${totalTicketsSold}/${fullBooking.event.capacity} tickets vendidos`,
+              description: `📊 Tickets vendidos: ${totalTicketsSold}/${fullBooking.event.capacity} | Disponibles: ${fullBooking.event.availableTickets}\n\n${fullBooking.event.description || ''}\nUbicación: ${fullBooking.event.location}`,
+              location: fullBooking.event.location,
+              startDateTime: startDateTime.toISOString(),
+              endDateTime: endDateTime.toISOString(),
+              attendees: [fullBooking.customerEmail]
+            })
+            
+            if (calendarEvent?.success && calendarEvent.calendarEventId) {
+              await db.event.update({
+                where: { id: fullBooking.event.id },
+                data: { calendarEventId: calendarEvent.calendarEventId },
+              })
+              console.log('✅ Evento creado en calendario (pago con voucher)')
+            }
+          }
+        } catch (calendarError) {
+          console.error('Error con calendario:', calendarError)
+        }
+      }
+
       return NextResponse.json({
         success: true,
         bookingId: booking.id,

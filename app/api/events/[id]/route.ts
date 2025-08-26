@@ -66,18 +66,24 @@ export async function GET(
       )
     }
 
-    // Calcular tickets disponibles (contar todos los reservados: paid y pending)
-    const bookedTickets = event.bookings?.reduce((total, booking) => {
-      return total + (['paid', 'pending'].includes(booking.paymentStatus) ? booking.quantity : 0)
-    }, 0) || 0
+    // Usar el campo availableTickets directamente de la DB
+    // Ya que se actualiza correctamente cuando se hacen reservas
+    const bookedTickets = event.capacity - event.availableTickets
 
     const eventWithAvailability = {
       ...event,
-      availableTickets: event.capacity - bookedTickets,
+      availableTickets: event.availableTickets, // Usar el valor de la DB directamente
       bookedTickets,
     }
 
-    return NextResponse.json(eventWithAvailability)
+    // Desactivar caché para obtener datos frescos siempre
+    return NextResponse.json(eventWithAvailability, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    })
 
   } catch (error) {
     console.error('Error fetching event:', error)

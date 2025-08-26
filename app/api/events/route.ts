@@ -95,16 +95,14 @@ export async function GET(request: NextRequest) {
       total = mockResult.pagination.total
     }
 
-    // Calcular tickets disponibles para eventos públicos
+    // Usar availableTickets directamente de la DB (ya se actualiza correctamente)
     const eventsWithAvailability = events.map(event => {
-      // Contar solo las reservas pagadas y pendientes
-      const bookedTickets = event.bookings?.reduce((total, booking) => {
-        return total + (['paid', 'pending'].includes(booking.paymentStatus) ? booking.quantity : 0)
-      }, 0) || 0
+      // El campo availableTickets ya viene actualizado de la DB
+      const bookedTickets = event.capacity - event.availableTickets
 
       return {
         ...event,
-        availableTickets: event.capacity - bookedTickets,
+        availableTickets: event.availableTickets, // Usar valor de DB directamente
         bookedTickets, // Incluir para debugging
       }
     })
@@ -116,6 +114,12 @@ export async function GET(request: NextRequest) {
         limit: filters.limit,
         total,
         totalPages: Math.ceil(total / filters.limit),
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       }
     })
 

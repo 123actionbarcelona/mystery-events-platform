@@ -4,7 +4,7 @@ import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { db } from '@/lib/db'
 import { sendBookingConfirmationEmail } from '@/lib/gmail'
-import { addAttendeeToCalendarEvent } from '@/lib/calendar'
+import { addAttendeeToCalendarEvent, updateCalendarEventWithBookingTotals } from '@/lib/calendar'
 import { sendVoucherEmail, sendVoucherPurchaseConfirmation } from '@/lib/voucher-email-service'
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
@@ -210,6 +210,17 @@ async function handleBookingCompleted(session: Stripe.Checkout.Session, bookingI
       }
     }
 
+    // Actualizar tickets disponibles del evento
+    await db.event.update({
+      where: { id: booking.eventId },
+      data: {
+        availableTickets: {
+          decrement: booking.quantity,
+        },
+      },
+    })
+    console.log(`✅ Webhook: Tickets actualizados -${booking.quantity} para evento ${booking.event.title}`)
+
     // Actualizar estadísticas del cliente
     await db.customer.update({
       where: { id: booking.customer.id },
@@ -255,14 +266,29 @@ async function handleBookingCompleted(session: Stripe.Checkout.Session, bookingI
     // Agregar al calendario si el evento está sincronizado
     try {
       if (booking.event.calendarEventId) {
-        await addAttendeeToCalendarEvent(
-          booking.event.calendarEventId,
-          booking.customerEmail
-        )
-        console.log(`Customer added to calendar event for booking ${booking.bookingCode}`)
+        // Obtener el evento actualizado con los nuevos totales
+        const updatedEvent = await db.event.findUnique({
+          where: { id: booking.eventId },
+        })
+        
+        if (updatedEvent) {
+          const totalTicketsSold = updatedEvent.capacity - updatedEvent.availableTickets
+          await updateCalendarEventWithBookingTotals(
+            booking.event.calendarEventId,
+            {
+              title: booking.event.title,
+              totalTicketsSold,
+              availableTickets: updatedEvent.availableTickets,
+              capacity: updatedEvent.capacity,
+              attendeeEmail: booking.customerEmail,
+              attendeeName: booking.customerName,
+            }
+          )
+          console.log(`Calendar event updated with totals for booking ${booking.bookingCode}`)
+        }
       }
     } catch (calendarError) {
-      console.error('Error adding to calendar:', calendarError)
+      console.error('Error updating calendar:', calendarError)
     }
 
   } catch (error) {

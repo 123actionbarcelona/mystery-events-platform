@@ -78,7 +78,13 @@ export default function EventDetailPage({ params }: PageProps) {
     
     const fetchEvent = async () => {
       try {
-        const response = await fetch(`/api/events/${eventId}`)
+        // Añadir timestamp para evitar caché
+        const response = await fetch(`/api/events/${eventId}?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        })
         if (response.ok) {
           const eventData = await response.json()
           setEvent(eventData)
@@ -100,6 +106,11 @@ export default function EventDetailPage({ params }: PageProps) {
     }
 
     fetchEvent()
+    
+    // Auto-refresh cada 30 segundos para actualizar disponibilidad
+    const interval = setInterval(fetchEvent, 30000)
+    
+    return () => clearInterval(interval)
   }, [eventId, router])
 
   const handleBooking = () => {

@@ -102,9 +102,9 @@ function BookingConfirmationContent() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Reserva no encontrada</h1>
-          <Button asChild>
-            <Link href="/events">Volver a eventos</Link>
-          </Button>
+          <Link href="/events">
+            <Button>Volver a eventos</Button>
+          </Link>
         </div>
       </div>
     )
@@ -272,12 +272,12 @@ function BookingConfirmationContent() {
                   Compartir Experiencia
                 </Button>
 
-                <Button asChild className="w-full" variant="outline">
-                  <Link href="/booking/status">
+                <Link href="/booking/status">
+                  <Button className="w-full" variant="outline">
                     <Mail className="h-4 w-4 mr-2" />
                     Consultar Reserva
-                  </Link>
-                </Button>
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -310,19 +310,19 @@ function BookingConfirmationContent() {
             {/* Navigation */}
             <Card>
               <CardContent className="pt-6 space-y-3">
-                <Button asChild className="w-full">
-                  <Link href="/events">
+                <Link href="/events">
+                  <Button className="w-full">
                     <Calendar className="h-4 w-4 mr-2" />
                     Ver Más Eventos
-                  </Link>
-                </Button>
+                  </Button>
+                </Link>
 
-                <Button asChild className="w-full" variant="outline">
-                  <Link href="/">
+                <Link href="/">
+                  <Button className="w-full" variant="outline">
                     <Home className="h-4 w-4 mr-2" />
                     Ir al Inicio
-                  </Link>
-                </Button>
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           </div>
@@ -339,12 +339,12 @@ function BookingConfirmationContent() {
               Nuestro equipo está emocionado de recibirte.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild variant="secondary">
-                <Link href="/events">
+              <Link href="/events">
+                <Button variant="secondary">
                   Explorar Más Eventos
                   <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
